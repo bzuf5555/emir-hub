@@ -56,10 +56,13 @@ async def apply_session(context: BrowserContext) -> bool:
 
 
 async def is_session_valid(page) -> bool:
-    """Dashboard sahifasini yuklaydi va login redirect yo'qligini tekshiradi."""
+    """Dashboard ga o'tib, login sahifasiga redirect bo'lmasa session faol.
+    Marsit.uz login sahifasi root URL: https://core.marsit.uz/
+    """
     await page.goto(config.MARSIT_DASHBOARD_URL, wait_until="domcontentloaded", timeout=15000)
-    current_url = page.url
-    is_valid = "/login" not in current_url and "/auth" not in current_url
+    current_url = page.url.rstrip("/")
+    base_url = config.MARSIT_BASE_URL.rstrip("/")
+    is_valid = current_url != base_url and "/login" not in current_url
     logger.info(f"Session tekshiruvi: {'faol' if is_valid else 'eskirgan'} ({current_url})")
     return is_valid
 

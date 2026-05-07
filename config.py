@@ -5,7 +5,7 @@ load_dotenv()
 
 
 class Config:
-    MARSIT_EMAIL: str = os.getenv("MARSIT_EMAIL", "")
+    MARSIT_PHONE: str = os.getenv("MARSIT_PHONE", "")
     MARSIT_PASSWORD: str = os.getenv("MARSIT_PASSWORD", "")
 
     TELEGRAM_BOT_TOKEN: str = os.getenv("TELEGRAM_BOT_TOKEN", "")
@@ -30,7 +30,7 @@ class Config:
 
     def validate(self) -> None:
         required = {
-            "MARSIT_EMAIL": self.MARSIT_EMAIL,
+            "MARSIT_PHONE": self.MARSIT_PHONE,
             "MARSIT_PASSWORD": self.MARSIT_PASSWORD,
             "TELEGRAM_BOT_TOKEN": self.TELEGRAM_BOT_TOKEN,
         }

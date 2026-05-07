@@ -48,37 +48,40 @@ async def _screenshot(page: Page, name: str) -> None:
 
 
 async def _login(page: Page, context: BrowserContext) -> None:
+    """
+    Marsit.uz login: telefon raqam + parol.
+    Login sahifasi: https://core.marsit.uz/ (root)
+    Selectors Playwright snapshot dan aniqlangan: 2026-05-07
+    """
     logger.info("Login qilinmoqda...")
-    await page.goto(f"{config.MARSIT_BASE_URL}/login", wait_until="networkidle", timeout=30000)
+    await page.goto(config.MARSIT_BASE_URL, wait_until="networkidle", timeout=30000)
     await _screenshot(page, "before_login")
 
-    # Email va parol fieldlarini topib to'ldiradi
-    # Marsit.uz login form selectors (adjust if page changes)
-    await page.wait_for_selector("input[type='email'], input[name='email'], input[placeholder*='mail']", timeout=10000)
+    # Telefon raqam field — "+998" pre-filled, triple-click bilan tanlab tozalab yozamiz
+    phone_input = page.get_by_placeholder("Telefon raqam")
+    await phone_input.wait_for(state="visible", timeout=10000)
+    await phone_input.triple_click()
+    await phone_input.fill(config.MARSIT_PHONE)
 
-    email_input = page.locator("input[type='email'], input[name='email'], input[placeholder*='mail']").first
-    await email_input.fill(config.MARSIT_EMAIL)
-
-    password_input = page.locator("input[type='password']").first
+    # Parol field
+    password_input = page.get_by_placeholder("Password")
     await password_input.fill(config.MARSIT_PASSWORD)
 
-    await password_input.press("Enter")
+    # "Kirish" tugmasi (disabled → enabled bo'lishini kutamiz)
+    kirish_btn = page.get_by_role("button", name="Kirish")
+    await kirish_btn.wait_for(state="enabled", timeout=5000)
+    await kirish_btn.click()
 
-    # Dashboard yuklanishini kutish
-    try:
-        await page.wait_for_url(f"**/{config.MARSIT_BASE_URL.split('/')[-1]}/**", timeout=15000)
-    except Exception:
-        pass
+    await page.wait_for_load_state("networkidle", timeout=20000)
 
-    await page.wait_for_load_state("networkidle", timeout=15000)
-
-    if "/login" in page.url or "/auth" in page.url:
+    # Hali login sahifasida qolgan bo'lsa — xato
+    if page.url.rstrip("/") == config.MARSIT_BASE_URL.rstrip("/"):
         await _screenshot(page, "login_failed")
-        raise RuntimeError("Login muvaffaqiyatsiz — email/parolni tekshiring")
+        raise RuntimeError("Login muvaffaqiyatsiz — telefon raqam yoki parolni tekshiring")
 
     cookies = await context.cookies()
     token_agent.save_session(cookies)
-    logger.info("Login muvaffaqiyatli, session saqlandi")
+    logger.info(f"Login muvaffaqiyatli → {page.url}")
 
 
 async def _ensure_authenticated(page: Page, context: BrowserContext) -> None:
