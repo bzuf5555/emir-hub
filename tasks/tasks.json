@@ -1,0 +1,163 @@
+{
+  "project": "emir-hub",
+  "version": "1.0.0",
+  "tasks": [
+    {
+      "id": "T-100-001",
+      "title": "Loyiha tuzilmasi va config fayllari",
+      "model": "claude-haiku-4-5-20251001",
+      "complexity": 100,
+      "status": "done",
+      "micro_tasks": [
+        { "id": "T-100-001-1", "title": "CLAUDE.md qoidalar", "done": true },
+        { "id": "T-100-001-2", "title": ".env.example yaratish", "done": true },
+        { "id": "T-100-001-3", "title": "requirements.txt", "done": true },
+        { "id": "T-100-001-4", "title": ".gitignore", "done": true },
+        { "id": "T-100-001-5", "title": "config.py", "done": true }
+      ],
+      "data": {}
+    },
+    {
+      "id": "T-200-002",
+      "title": "Database modellari",
+      "model": "claude-sonnet-4-6",
+      "complexity": 200,
+      "status": "done",
+      "micro_tasks": [
+        { "id": "T-200-002-1", "title": "Student modeli", "done": true },
+        { "id": "T-200-002-2", "title": "Group modeli", "done": true },
+        { "id": "T-200-002-3", "title": "CoinTransaction modeli", "done": true },
+        { "id": "T-200-002-4", "title": "CheckLog modeli", "done": true },
+        { "id": "T-200-002-5", "title": "database.py setup", "done": true }
+      ],
+      "data": {
+        "db": "SQLite",
+        "orm": "SQLAlchemy 2.0"
+      }
+    },
+    {
+      "id": "T-100-003",
+      "title": "Git manager",
+      "model": "claude-haiku-4-5-20251001",
+      "complexity": 100,
+      "status": "done",
+      "micro_tasks": [
+        { "id": "T-100-003-1", "title": "git_manager.py — pull/push/conflict", "done": true }
+      ],
+      "data": {}
+    },
+    {
+      "id": "T-200-004",
+      "title": "Token Agent — session saqlash",
+      "model": "claude-sonnet-4-6",
+      "complexity": 200,
+      "status": "done",
+      "micro_tasks": [
+        { "id": "T-200-004-1", "title": "save_session() funksiyasi", "done": true },
+        { "id": "T-200-004-2", "title": "load_session() funksiyasi", "done": true },
+        { "id": "T-200-004-3", "title": "is_session_valid() tekshiruvi", "done": true },
+        { "id": "T-200-004-4", "title": "clear_session() funksiyasi", "done": true }
+      ],
+      "data": {
+        "file": "session/cookies.json",
+        "expiry_hours": 12
+      }
+    },
+    {
+      "id": "T-300-005",
+      "title": "Scraper Agent — marsit.uz dashboard scraping",
+      "model": "claude-opus-4-7",
+      "complexity": 300,
+      "status": "done",
+      "micro_tasks": [
+        { "id": "T-300-005-1", "title": "Login flow (email+parol)", "done": true },
+        { "id": "T-300-005-2", "title": "Guruhlar ro'yxatini olish", "done": true },
+        { "id": "T-300-005-3", "title": "Guruh ichidagi o'quvchilar", "done": true },
+        { "id": "T-300-005-4", "title": "Uyga vazifa completion status", "done": true },
+        { "id": "T-300-005-5", "title": "Debug screenshot rejimi", "done": true },
+        { "id": "T-300-005-6", "title": "Retry va error handling", "done": true }
+      ],
+      "data": {
+        "url": "https://core.marsit.uz/teacher-dashboard",
+        "homework_section": "uyga vazifalar"
+      }
+    },
+    {
+      "id": "T-100-006",
+      "title": "Coin Agent — hisob-kitob",
+      "model": "claude-haiku-4-5-20251001",
+      "complexity": 100,
+      "status": "done",
+      "micro_tasks": [
+        { "id": "T-100-006-1", "title": "Solved: +5 coin", "done": true },
+        { "id": "T-100-006-2", "title": "Not solved: -20 coin", "done": true },
+        { "id": "T-100-006-3", "title": "DB ga yozish", "done": true },
+        { "id": "T-100-006-4", "title": "Balance query", "done": true }
+      ],
+      "data": {
+        "solved_reward": 5,
+        "unsolved_penalty": -20
+      }
+    },
+    {
+      "id": "T-200-007",
+      "title": "Notification Agent — chiroyli xabar formatlash",
+      "model": "claude-sonnet-4-6",
+      "complexity": 200,
+      "status": "done",
+      "micro_tasks": [
+        { "id": "T-200-007-1", "title": "Ertalab eslatma formati", "done": true },
+        { "id": "T-200-007-2", "title": "Kechqurun natija formati", "done": true },
+        { "id": "T-200-007-3", "title": "Telegram yuborish funksiyasi", "done": true }
+      ],
+      "data": {
+        "morning_time": "09:00",
+        "evening_time": "23:00",
+        "timezone": "Asia/Tashkent"
+      }
+    },
+    {
+      "id": "T-200-008",
+      "title": "Scheduler — 9:00 va 23:00 joblar",
+      "model": "claude-sonnet-4-6",
+      "complexity": 200,
+      "status": "done",
+      "micro_tasks": [
+        { "id": "T-200-008-1", "title": "APScheduler sozlash", "done": true },
+        { "id": "T-200-008-2", "title": "morning_job (eslatma)", "done": true },
+        { "id": "T-200-008-3", "title": "evening_job (tekshirish + natija)", "done": true },
+        { "id": "T-200-008-4", "title": "Timezone: Asia/Tashkent", "done": true }
+      ],
+      "data": {}
+    },
+    {
+      "id": "T-200-009",
+      "title": "Main entry point",
+      "model": "claude-sonnet-4-6",
+      "complexity": 200,
+      "status": "done",
+      "micro_tasks": [
+        { "id": "T-200-009-1", "title": "Git pull session boshida", "done": true },
+        { "id": "T-200-009-2", "title": "DB init", "done": true },
+        { "id": "T-200-009-3", "title": "Scheduler start", "done": true },
+        { "id": "T-200-009-4", "title": "Bot start", "done": true }
+      ],
+      "data": {}
+    },
+    {
+      "id": "T-200-010",
+      "title": "Telegram Bot — guruh ID larini qo'shish",
+      "model": "claude-sonnet-4-6",
+      "complexity": 200,
+      "status": "pending",
+      "micro_tasks": [
+        { "id": "T-200-010-1", "title": "Bot token olish", "done": false },
+        { "id": "T-200-010-2", "title": "Guruh Telegram ID larini .env ga qo'shish", "done": false },
+        { "id": "T-200-010-3", "title": "Har guruh uchun mapping", "done": false }
+      ],
+      "data": {
+        "note": "Bu OXIRGI task — guruh ID lar kerak"
+      }
+    }
+  ]
+}

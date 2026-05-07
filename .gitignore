@@ -1,0 +1,12 @@
+.env
+session/
+logs/
+*.db
+*.db-journal
+__pycache__/
+*.pyc
+*.pyo
+.playwright/
+screenshots/
+.venv/
+venv/
