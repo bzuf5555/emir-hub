@@ -1,0 +1,2 @@
+[     299ms] [ERROR] Failed to load resource: the server responded with a status of 403 () @ https://api.marsit.uz/api/v1/auth/check:0
+[     428ms] [VERBOSE] [DOM] Input elements should have autocomplete attributes (suggested: "current-password"): (More info: https://goo.gl/9p2vKq) %o @ https://core.marsit.uz/:0

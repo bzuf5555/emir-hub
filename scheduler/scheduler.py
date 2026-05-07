@@ -35,7 +35,10 @@ async def evening_job() -> None:
     logger.info("Kechqurun tekshiruv job boshlandi")
 
     try:
-        all_groups = await scraper_agent.scrape_all_groups()
+        import asyncio
+        all_groups = await asyncio.get_event_loop().run_in_executor(
+            None, scraper_agent.scrape_all_groups
+        )
     except Exception as e:
         logger.error(f"Scraping muvaffaqiyatsiz: {e}")
         return

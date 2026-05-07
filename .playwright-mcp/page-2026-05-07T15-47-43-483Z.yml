@@ -1,0 +1,15 @@
+- generic [ref=e5]:
+  - img "logo" [ref=e6]
+  - heading "xush kelibsiz" [level=2] [ref=e7]
+  - generic [ref=e8]:
+    - generic [ref=e9]: "*Telefon raqam"
+    - textbox "*Telefon raqam" [active] [ref=e10]:
+      - /placeholder: Telefon raqam
+      - text: "+998"
+    - generic [ref=e12]: "*Parol"
+    - generic [ref=e13]:
+      - textbox "*Parol" [ref=e14]:
+        - /placeholder: Password
+      - button "" [ref=e15] [cursor=pointer]:
+        - generic [ref=e16]: 
+    - button "Kirish" [disabled] [ref=e17] [cursor=pointer]

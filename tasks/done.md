@@ -2,6 +2,25 @@
 
 ---
 
+## T-300-011 · Marsit.uz sahifa va API strukturasini aniqlash
+**Model:** `claude-opus-4-7` | **Tugatildi:** 2026-05-07
+
+- [x] T-300-011-1 · Login sahifasi: telefon raqam + parol (email emas), URL = root `/`
+- [x] T-300-011-2 · Dashboard ochildi: 8 ta guruh (INPR-1954, nBG-2999, nF-2665, nF-2719, nFPro-422, RCT-246, RCT-299, RCT-366)
+- [x] T-300-011-3 · "Uyga vazifalar" tab topildi — Quiz + Vazifa, sana ustunlari
+- [x] T-300-011-4 · **API topildi**: `https://api.marsit.uz` — Playwright kerak emas!
+- [x] T-300-011-5 · `GET /api/v1/groups/{id}/students/progress/by-lesson-days` → `is_completed` field
+- [x] T-300-011-6 · `scraper_agent.py` → pure API client (httpx), DOM scraping o'chirildi
+- [x] T-300-011-7 · `api_client.py` yaratildi: login, session cache, get_groups, get_today_results
+
+**Aniqlangan:**
+- Auth: `POST https://api.marsit.uz/api/v1/auth/signin` `{"user":{"phone":"...","password":"..."}}`
+- Session: HttpOnly cookies, `session/cookies.json` da saqlanadi
+- Guruh natijalari: `lesson_days[date==today].students_progress[].is_completed`
+- `playwright` dependency olib tashlandi → `httpx` bilan almashtirildi
+
+---
+
 ## T-100-001 · Loyiha tuzilmasi va config fayllari
 **Model:** `claude-haiku-4-5-20251001` | **Tugatildi:** 2026-05-07
 
