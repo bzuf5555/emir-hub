@@ -1,8 +1,15 @@
 import logging
 
-from telegram.ext import Application, CommandHandler
+from telegram.ext import (
+    Application, CommandHandler, CallbackQueryHandler,
+    MessageHandler, ConversationHandler, filters,
+)
 
-from bot.handlers import cmd_start, cmd_status, cmd_check, cmd_coins, cmd_set_group
+from bot.handlers import (
+    cmd_start, cmd_coins, cmd_set_group,
+    on_group_selected, on_action_message, on_action_check,
+    on_back_start, receive_message, WAITING_MESSAGE,
+)
 from config import config
 
 logger = logging.getLogger("bot")
@@ -11,11 +18,25 @@ logger = logging.getLogger("bot")
 def create_app() -> Application:
     app = Application.builder().token(config.TELEGRAM_BOT_TOKEN).build()
 
+    # Xabar yuborish: guruh tanlash → matn yozish
+    conv = ConversationHandler(
+        entry_points=[CallbackQueryHandler(on_action_message, pattern=r"^action:msg:")],
+        states={
+            WAITING_MESSAGE: [
+                MessageHandler(filters.TEXT & ~filters.COMMAND, receive_message),
+            ],
+        },
+        fallbacks=[CommandHandler("bekor", receive_message)],
+        per_message=False,
+    )
+
     app.add_handler(CommandHandler("start", cmd_start))
-    app.add_handler(CommandHandler("status", cmd_status))
-    app.add_handler(CommandHandler("check", cmd_check))
     app.add_handler(CommandHandler("coins", cmd_coins))
     app.add_handler(CommandHandler("setgroup", cmd_set_group))
+    app.add_handler(conv)
+    app.add_handler(CallbackQueryHandler(on_group_selected,  pattern=r"^group:"))
+    app.add_handler(CallbackQueryHandler(on_action_check,    pattern=r"^action:check:"))
+    app.add_handler(CallbackQueryHandler(on_back_start,      pattern=r"^back:start$"))
 
     logger.info("Telegram bot sozlandi")
     return app
