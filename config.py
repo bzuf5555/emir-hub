@@ -31,11 +31,13 @@ class Config:
     COIN_UNSOLVED: int = -20
 
     def validate(self) -> None:
+        # BUG-022: localhost default ham "missing" hisoblanadi
+        _MONGO_DEFAULT = "mongodb://localhost:27017"
         required = {
             "MARSIT_PHONE": self.MARSIT_PHONE,
             "MARSIT_PASSWORD": self.MARSIT_PASSWORD,
             "TELEGRAM_BOT_TOKEN": self.TELEGRAM_BOT_TOKEN,
-            "MONGODB_URI": self.MONGODB_URI,
+            "MONGODB_URI": "" if self.MONGODB_URI == _MONGO_DEFAULT else self.MONGODB_URI,
         }
         missing = [k for k, v in required.items() if not v]
         if missing:

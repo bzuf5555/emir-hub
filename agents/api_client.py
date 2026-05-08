@@ -110,12 +110,15 @@ def get_today_results(group_id: int) -> list[dict]:
     today_str = today.isoformat()
     for day in lesson_days:
         if day.get("date") == today_str:
+            # BUG-019: .get() bilan KeyError himoyasi
+            element = day.get("course_element") or {}
+            progress = day.get("students_progress", [])
             logger.info(
                 f"Guruh {group_id} | {today_str} | "
-                f"mavzu: {day['course_element'].get('title_uz', '')} | "
-                f"{len(day['students_progress'])} ta o'quvchi"
+                f"mavzu: {element.get('title_uz', '')} | "
+                f"{len(progress)} ta o'quvchi"
             )
-            return day["students_progress"]
+            return progress
 
     logger.info(f"Guruh {group_id}: {today_str} uchun dars topilmadi")
     return []
