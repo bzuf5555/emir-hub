@@ -7,16 +7,32 @@ from config import config
 logger = logging.getLogger("coin_agent")
 
 
-async def process_results(group_marsit_id: str, student_results: list[dict]) -> dict:
+async def process_results(
+    group_marsit_id: str,
+    student_results: list[dict],
+    check_type: str = "evening",  # BUG-011: "morning" | "evening" | "manual"
+) -> dict:
     """
     student_results: [{"marsit_id": str, "name": str, "solved": bool}, ...]
     Qaytaradi: {solved, unsolved, total_given, total_taken, warned_students}
     """
     db = get_db()
+    now = datetime.now(timezone.utc)
+
+    # BUG-002: bugun allaqachon tekshirilganmi?
+    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    existing = await db.check_logs.find_one({
+        "group_id": group_marsit_id,
+        "check_type": check_type,
+        "checked_at": {"$gte": today_start},
+    })
+    if existing:
+        logger.warning(f"Guruh {group_marsit_id}: bugun ({check_type}) allaqachon tekshirilgan — o'tkazib yuborildi")
+        return {"solved": [], "unsolved": [], "total_given": 0, "total_taken": 0, "warned_students": []}
+
     solved, unsolved, warned_students = [], [], []
     total_given = total_taken = 0
     transactions = []
-    now = datetime.now(timezone.utc)
 
     for sr in student_results:
         is_solved = sr["solved"]
@@ -25,16 +41,10 @@ async def process_results(group_marsit_id: str, student_results: list[dict]) -> 
         marsit_id = sr["marsit_id"]
 
         if is_solved:
-            # Bajargan — streakni nolga tushiramiz
             await db.students.update_one(
                 {"marsit_id": marsit_id},
                 {
-                    "$set": {
-                        "name": name,
-                        "group_id": group_marsit_id,
-                        "is_active": True,
-                        "missed_streak": 0,
-                    },
+                    "$set": {"name": name, "group_id": group_marsit_id, "is_active": True, "missed_streak": 0},
                     "$inc": {"coin_balance": coins},
                 },
                 upsert=True,
@@ -42,7 +52,6 @@ async def process_results(group_marsit_id: str, student_results: list[dict]) -> 
             solved.append({"name": name, "marsit_id": marsit_id})
             total_given += coins
         else:
-            # Bajarmagan — streakni +1 qilamiz
             result = await db.students.find_one_and_update(
                 {"marsit_id": marsit_id},
                 {
@@ -52,9 +61,7 @@ async def process_results(group_marsit_id: str, student_results: list[dict]) -> 
                 upsert=True,
                 return_document=True,
             )
-            streak = (result or {}).get("missed_streak", 1)
-            # find_one_and_update returns doc BEFORE update by default, so +1
-            streak = streak + 1 if result and "missed_streak" in result else 1
+            streak = ((result or {}).get("missed_streak", 0) + 1) if result else 1
 
             unsolved.append({"name": name, "marsit_id": marsit_id})
             warned_students.append({"name": name, "marsit_id": marsit_id, "missed_streak": streak})
@@ -74,7 +81,7 @@ async def process_results(group_marsit_id: str, student_results: list[dict]) -> 
 
     await db.check_logs.insert_one({
         "group_id": group_marsit_id,
-        "check_type": "evening",
+        "check_type": check_type,
         "solved_count": len(solved),
         "unsolved_count": len(unsolved),
         "checked_at": now,
@@ -91,5 +98,7 @@ async def process_results(group_marsit_id: str, student_results: list[dict]) -> 
 
 async def get_leaderboard(limit: int = 20) -> list[dict]:
     db = get_db()
-    cursor = db.students.find({"is_active": True}, {"name": 1, "coin_balance": 1}).sort("coin_balance", -1).limit(limit)
+    cursor = db.students.find(
+        {"is_active": True}, {"name": 1, "coin_balance": 1}
+    ).sort("coin_balance", -1).limit(limit)
     return await cursor.to_list(length=limit)

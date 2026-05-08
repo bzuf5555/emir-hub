@@ -33,9 +33,15 @@ def _handle_conflict() -> None:
         _run(["git", "pull", "--no-rebase"])
 
 
-def task_done_push(task_id: str, message: str) -> None:
-    """Task tugaganda chaqiriladi — commit va push."""
-    _run(["git", "add", "-u"])
+def task_done_push(task_id: str, message: str, files: list[str] | None = None) -> None:
+    """Task tugaganda chaqiriladi — commit va push.
+    BUG-014: files ko'rsatilmasa — hech narsa add qilinmaydi.
+    """
+    if not files:
+        logger.warning("task_done_push: files bo'sh — git add o'tkazib yuborildi")
+        return
+    for f in files:
+        _run(["git", "add", f])
 
     code, _, err = _run(["git", "commit", "-m", f"task({task_id}): {message}"])
     if code != 0:

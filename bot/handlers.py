@@ -1,14 +1,31 @@
 import asyncio
 import logging
+from functools import wraps
 
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.constants import ParseMode
 from telegram.ext import ContextTypes, ConversationHandler
 
 from agents.coin_agent import get_leaderboard
+from config import config
 from database import get_db
 
 logger = logging.getLogger("bot.handlers")
+
+
+# BUG-003: admin_only dekorator — faqat ADMIN_CHAT_IDS yoki MENTOR_CHAT_ID
+def admin_only(func):
+    @wraps(func)
+    async def wrapper(update: Update, context: ContextTypes.DEFAULT_TYPE):
+        user_id = str(update.effective_user.id)
+        allowed = set(config.ADMIN_CHAT_IDS)
+        if config.MENTOR_CHAT_ID:
+            allowed.add(config.MENTOR_CHAT_ID)
+        if user_id not in allowed:
+            await update.message.reply_text("⛔ Ruxsat yo'q.")
+            return
+        return await func(update, context)
+    return wrapper
 
 # ConversationHandler holatlari
 WAITING_MESSAGE = 1
@@ -335,6 +352,7 @@ async def on_back_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
 
 # ─── Qolgan buyruqlar ─────────────────────────────────────────────────────────
 
+@admin_only
 async def cmd_coins(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     students = await get_leaderboard(20)
     if not students:
@@ -348,6 +366,7 @@ async def cmd_coins(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     await update.message.reply_text("\n".join(lines), parse_mode=ParseMode.HTML)
 
 
+@admin_only
 async def cmd_set_group(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if not context.args:
         await update.message.reply_text("Ishlatish: /setgroup <marsit_guruh_id>")

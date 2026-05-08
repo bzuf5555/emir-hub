@@ -71,6 +71,9 @@ async def main() -> None:
 
     # 6. Telegram bot
     app = create_app()
+    # BUG-010: Application.bot ni notification_agent ga uzatish
+    from agents.notification_agent import set_bot
+    set_bot(app.bot)
     logger.info("Bot ishga tushmoqda...")
 
     async with app:

@@ -8,12 +8,20 @@ from config import config
 
 logger = logging.getLogger("notification_agent")
 
+# BUG-010: Application.bot orqali ishlash (PTB v20+ bilan mos)
 _bot: Bot | None = None
+
+
+def set_bot(bot: Bot) -> None:
+    """main.py da app yaratilgandan so'ng chaqiriladi."""
+    global _bot
+    _bot = bot
 
 
 def get_bot() -> Bot:
     global _bot
     if _bot is None:
+        # Fallback: Application ishlamagan paytda (test, scheduler cold start)
         _bot = Bot(token=config.TELEGRAM_BOT_TOKEN)
     return _bot
 
