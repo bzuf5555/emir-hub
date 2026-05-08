@@ -7,8 +7,11 @@ Ishga tushirish:
 """
 import asyncio
 import logging
+import os
 import sys
 from pathlib import Path
+from threading import Thread
+from http.server import HTTPServer, BaseHTTPRequestHandler
 
 # Logging sozlash
 Path("logs").mkdir(exist_ok=True)
@@ -24,6 +27,23 @@ logging.basicConfig(
 logger = logging.getLogger("main")
 
 
+class HealthHandler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        self.send_response(200)
+        self.end_headers()
+        self.wfile.write(b"OK")
+
+    def log_message(self, *args):
+        pass  # health check loglarini yashirish
+
+
+def start_health_server() -> None:
+    port = int(os.environ.get("PORT", 8000))
+    server = HTTPServer(("0.0.0.0", port), HealthHandler)
+    logger.info(f"Health server port {port} da ishga tushdi")
+    server.serve_forever()
+
+
 async def main() -> None:
     from config import config
     from git_manager import session_start_pull
@@ -31,22 +51,25 @@ async def main() -> None:
     from scheduler.scheduler import create_scheduler
     from bot.bot import create_app
 
-    # 1. Session boshida git pull
+    # 1. Health server (Render uyqu rejimiga tushurib qo'ymasligi uchun)
+    Thread(target=start_health_server, daemon=True).start()
+
+    # 2. Session boshida git pull
     session_start_pull()
 
-    # 2. Config tekshirish
+    # 3. Config tekshirish
     config.validate()
 
-    # 3. DB yaratish
+    # 4. DB yaratish
     await init_db()
     logger.info("Database tayyor")
 
-    # 4. Scheduler
+    # 5. Scheduler
     scheduler = create_scheduler()
     scheduler.start()
     logger.info("Scheduler ishga tushdi")
 
-    # 5. Telegram bot
+    # 6. Telegram bot
     app = create_app()
     logger.info("Bot ishga tushmoqda...")
 
