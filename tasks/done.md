@@ -2,6 +2,34 @@
 
 ---
 
+## T-200-013 · 09:00 va 10:00 da bajarmagan o'quvchilar ro'yxati
+**Model:** `claude-sonnet-4-6` | **Tugatildi:** 2026-05-08
+
+- [x] `unsubmitted_report_job()` — mentorga har guruh uchun alohida xabar
+- [x] Scheduler: 09:00, 10:00, 23:00 + task_assignment joblar
+
+## fix BUG-020 · `get_event_loop()` → `_run_sync()` helper
+**Model:** `claude-haiku-4-5-20251001` | **Tugatildi:** 2026-05-08
+- [x] `scheduler.py` — barcha `get_event_loop()` `_run_sync()` ga o'zgartirildi
+
+## fix BUG-022 · MONGODB_URI default validate() dan o'tib ketmasdi
+**Model:** `claude-haiku-4-5-20251001` | **Tugatildi:** 2026-05-08
+- [x] `config.py` validate() — localhost default qiymat ham "missing" hisoblanadi
+
+## fix BUG-021 · MongoDB timeout va ping tekshiruvi
+**Model:** `claude-haiku-4-5-20251001` | **Tugatildi:** 2026-05-08
+- [x] `database.py` — `serverSelectionTimeoutMS=5000`, `init_db()` da ping
+
+## fix BUG-023 · MongoDB indexlar
+**Model:** `claude-haiku-4-5-20251001` | **Tugatildi:** 2026-05-08
+- [x] `coin_transactions`, `check_logs` indexlari qo'shildi
+
+## fix BUG-019 · KeyError himoyasi
+**Model:** `claude-haiku-4-5-20251001` | **Tugatildi:** 2026-05-08
+- [x] `day["students_progress"]` → `day.get("students_progress", [])`
+
+---
+
 ## T-200-012 · SQLite → MongoDB Atlas migratsiyasi
 **Model:** `claude-sonnet-4-6` | **Tugatildi:** 2026-05-08
 
