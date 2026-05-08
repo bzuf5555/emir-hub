@@ -1,0 +1,26 @@
+services:
+  - type: worker
+    name: emir-hub-bot
+    runtime: python
+    plan: starter
+    buildCommand: pip install -r requirements.txt
+    startCommand: python main.py
+    envVars:
+      - key: MARSIT_PHONE
+        sync: false
+      - key: MARSIT_PASSWORD
+        sync: false
+      - key: TELEGRAM_BOT_TOKEN
+        sync: false
+      - key: DATABASE_URL
+        value: sqlite:///emir_hub.db
+      - key: DEBUG
+        value: false
+      - key: SCREENSHOT_ON_ERROR
+        value: false
+      - key: TIMEZONE
+        value: Asia/Tashkent
+      - key: CHECK_TIME_MORNING
+        value: "09:00"
+      - key: CHECK_TIME_EVENING
+        value: "23:00"
