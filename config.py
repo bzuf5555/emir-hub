@@ -10,7 +10,8 @@ class Config:
 
     TELEGRAM_BOT_TOKEN: str = os.getenv("TELEGRAM_BOT_TOKEN", "")
 
-    DATABASE_URL: str = os.getenv("DATABASE_URL", "sqlite:///emir_hub.db")
+    MONGODB_URI: str = os.getenv("MONGODB_URI", "mongodb://localhost:27017")
+    MONGODB_DB: str = os.getenv("MONGODB_DB", "emir_hub")
 
     CHECK_TIME_MORNING: str = os.getenv("CHECK_TIME_MORNING", "09:00")
     CHECK_TIME_EVENING: str = os.getenv("CHECK_TIME_EVENING", "23:00")
@@ -33,6 +34,7 @@ class Config:
             "MARSIT_PHONE": self.MARSIT_PHONE,
             "MARSIT_PASSWORD": self.MARSIT_PASSWORD,
             "TELEGRAM_BOT_TOKEN": self.TELEGRAM_BOT_TOKEN,
+            "MONGODB_URI": self.MONGODB_URI,
         }
         missing = [k for k, v in required.items() if not v]
         if missing:

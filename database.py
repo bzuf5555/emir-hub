@@ -1,22 +1,23 @@
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
-from sqlalchemy.orm import DeclarativeBase
+from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorDatabase
 from config import config
 
-_db_url = config.DATABASE_URL.replace("sqlite:///", "sqlite+aiosqlite:///")
-engine = create_async_engine(_db_url, echo=config.DEBUG)
-AsyncSessionLocal = async_sessionmaker(engine, expire_on_commit=False)
+_client: AsyncIOMotorClient | None = None
 
 
-class Base(DeclarativeBase):
-    pass
+def get_client() -> AsyncIOMotorClient:
+    global _client
+    if _client is None:
+        _client = AsyncIOMotorClient(config.MONGODB_URI)
+    return _client
+
+
+def get_db() -> AsyncIOMotorDatabase:
+    return get_client()[config.MONGODB_DB]
 
 
 async def init_db() -> None:
-    from models import Group, Student, CoinTransaction, CheckLog  # noqa: F401
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-
-
-async def get_session() -> AsyncSession:
-    async with AsyncSessionLocal() as session:
-        yield session
+    db = get_db()
+    await db.groups.create_index("marsit_id", unique=True)
+    await db.students.create_index("marsit_id", unique=True)
+    await db.students.create_index("group_id")
+    await db.check_logs.create_index("group_id")

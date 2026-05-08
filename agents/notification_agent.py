@@ -5,7 +5,6 @@ from telegram import Bot
 from telegram.constants import ParseMode
 
 from config import config
-from models import Student, Group
 
 logger = logging.getLogger("notification_agent")
 
@@ -40,8 +39,8 @@ def format_morning_reminder(group_name: str) -> str:
 
 def format_evening_results(
     group_name: str,
-    solved: list[Student],
-    unsolved: list[Student],
+    solved: list[dict],
+    unsolved: list[dict],
     total_given: int,
     total_taken: int,
 ) -> str:
@@ -61,14 +60,14 @@ def format_evening_results(
         lines.append(f"✅ <b>BAJARGANLAR</b> (+{config.COIN_SOLVED} 🪙 har biri)")
         lines.append("━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
         for i, s in enumerate(solved, 1):
-            lines.append(f"  {i}. {s.name}")
+            lines.append(f"  {i}. {s['name']}")
         lines.append("")
 
     if unsolved:
         lines.append(f"❌ <b>BAJARMAGANLAR</b> ({config.COIN_UNSOLVED} 🪙 har biri)")
         lines.append("━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
         for i, s in enumerate(unsolved, 1):
-            lines.append(f"  {i}. {s.name}")
+            lines.append(f"  {i}. {s['name']}")
         lines.append("")
 
     lines += [
@@ -90,8 +89,8 @@ async def send_morning_reminder(chat_id: str, group_name: str) -> None:
 async def send_evening_results(
     chat_id: str,
     group_name: str,
-    solved: list[Student],
-    unsolved: list[Student],
+    solved: list[dict],
+    unsolved: list[dict],
     total_given: int,
     total_taken: int,
 ) -> None:

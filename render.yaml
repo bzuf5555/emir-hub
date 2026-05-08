@@ -12,8 +12,10 @@ services:
         sync: false
       - key: TELEGRAM_BOT_TOKEN
         sync: false
-      - key: DATABASE_URL
-        value: sqlite:///emir_hub.db
+      - key: MONGODB_URI
+        sync: false
+      - key: MONGODB_DB
+        value: emir_hub
       - key: DEBUG
         value: false
       - key: SCREENSHOT_ON_ERROR
