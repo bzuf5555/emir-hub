@@ -2,6 +2,22 @@
 
 ---
 
+## T-200-012 · SQLite → MongoDB Atlas migratsiyasi
+**Model:** `claude-sonnet-4-6` | **Tugatildi:** 2026-05-08
+
+- [x] `motor` async driver qo'shildi, `sqlalchemy/aiosqlite` olib tashlandi
+- [x] `database.py` Motor client ga o'zgartirildi
+- [x] `coin_agent.py` MongoDB upsert/insert_many bilan qayta yozildi
+- [x] `handlers.py` MongoDB queries bilan yangilandi
+- [x] `scheduler.py` MongoDB queries bilan yangilandi
+- [x] Atlas login (Google SSO), Cluster0 mavjud
+- [x] `bzuf5555_db_user` paroli `Emir@2026bot` ga o'rnatildi
+- [x] IP Access List ga `0.0.0.0/0` qo'shildi (Render uchun)
+- [x] `MONGODB_URI` Render env ga qo'shildi (`Emir%402026bot` URL-encoded)
+- [x] Bot ishlayapti: getUpdates 200 OK, MongoDB xatosi yo'q
+
+---
+
 ## T-300-011 · Marsit.uz sahifa va API strukturasini aniqlash
 **Model:** `claude-opus-4-7` | **Tugatildi:** 2026-05-07
 
