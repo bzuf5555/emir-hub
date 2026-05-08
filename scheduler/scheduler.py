@@ -56,14 +56,28 @@ async def evening_job() -> None:
         result = await coin_agent.process_results(group_data.marsit_id, student_dicts)
 
         db_group = db_groups.get(group_data.marsit_id)
-        if db_group and db_group.get("telegram_chat_id"):
-            await notification_agent.send_evening_results(
-                chat_id=db_group["telegram_chat_id"],
-                group_name=db_group.get("name", group_data.name),
-                solved=result["solved"],
-                unsolved=result["unsolved"],
-                total_given=result["total_given"],
-                total_taken=result["total_taken"],
+        if not db_group or not db_group.get("telegram_chat_id"):
+            continue
+
+        chat_id = db_group["telegram_chat_id"]
+        group_name = db_group.get("name", group_data.name)
+
+        # 1. Kunlik natija
+        await notification_agent.send_evening_results(
+            chat_id=chat_id,
+            group_name=group_name,
+            solved=result["solved"],
+            unsolved=result["unsolved"],
+            total_given=result["total_given"],
+            total_taken=result["total_taken"],
+        )
+
+        # 2. Ogohlantirish (bajarmagan o'quvchilar uchun)
+        if result["warned_students"]:
+            await notification_agent.send_warnings(
+                group_chat_id=chat_id,
+                group_name=group_name,
+                warned_students=result["warned_students"],
             )
 
     logger.info(f"Kechqurun tekshiruv tugadi: {len(all_groups)} ta guruh")

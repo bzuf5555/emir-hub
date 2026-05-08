@@ -9,6 +9,7 @@ class Config:
     MARSIT_PASSWORD: str = os.getenv("MARSIT_PASSWORD", "")
 
     TELEGRAM_BOT_TOKEN: str = os.getenv("TELEGRAM_BOT_TOKEN", "")
+    MENTOR_CHAT_ID: str = os.getenv("MENTOR_CHAT_ID", "")  # Mentor shaxsiy chat ID
 
     MONGODB_URI: str = os.getenv("MONGODB_URI", "mongodb://localhost:27017")
     MONGODB_DB: str = os.getenv("MONGODB_DB", "emir_hub")

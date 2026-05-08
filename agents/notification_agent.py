@@ -81,6 +81,95 @@ def format_evening_results(
     return "\n".join(lines)
 
 
+# ─── Ogohlantirish xabarlari ───────────────────────────────────────────────────
+
+def format_group_warning(group_name: str, warned_students: list[dict]) -> str:
+    """
+    warned_students: [{name, missed_streak}, ...]
+    missed_streak 1, 2, 3+ ga qarab farqli xabar.
+    """
+    today = date.today().strftime("%d.%m.%Y")
+    lines = []
+
+    for s in warned_students:
+        streak = s["missed_streak"]
+        name = s["name"]
+
+        if streak == 1:
+            lines.append(
+                f"⚠️ <b>{name}</b> — uyga vazifa bajarilmadi!\n"
+                f"   📌 Ertangi <b>09:00</b> gacha bajaring! (1/3)"
+            )
+        elif streak == 2:
+            lines.append(
+                f"🔴 <b>{name}</b> — 2 kun ketma-ket bajarilmadi!\n"
+                f"   📌 Bugun albatta bajaring! (2/3)"
+            )
+        elif streak >= 3:
+            lines.append(
+                f"🚨 <b>{name}</b> — {streak} kun bajarilmadi!\n"
+                f"   ‼️ Oxirgi ogohlantirish! ({streak}/3+)"
+            )
+
+    if not lines:
+        return ""
+
+    header = (
+        f"╔══════════════════════════════╗\n"
+        f"║   📣 OGOHLANTIRISH           ║\n"
+        f"╚══════════════════════════════╝\n\n"
+        f"📅 {today} | 👥 <b>{group_name}</b>\n\n"
+    )
+    return header + "\n\n".join(lines)
+
+
+def format_mentor_warning(group_name: str, student: dict) -> str:
+    """2-marta o'tkazib yuborganda mentorga xabar."""
+    streak = student["missed_streak"]
+    name = student["name"]
+    today = date.today().strftime("%d.%m.%Y")
+
+    if streak >= 3:
+        return (
+            f"🚨 <b>OTA-ONAGA TELEFON QILING!</b>\n\n"
+            f"👤 O'quvchi: <b>{name}</b>\n"
+            f"👥 Guruh: <b>{group_name}</b>\n"
+            f"📅 Sana: {today}\n"
+            f"🔢 Ketma-ket o'tkazib yuborilgan: <b>{streak} kun</b>\n\n"
+            f"📞 Ota-onasi bilan zudlik bilan bog'laning!"
+        )
+    else:
+        return (
+            f"⚠️ <b>Ogohlantirish ({streak}/3)</b>\n\n"
+            f"👤 O'quvchi: <b>{name}</b>\n"
+            f"👥 Guruh: <b>{group_name}</b>\n"
+            f"📅 Sana: {today}\n"
+            f"🔢 Ketma-ket o'tkazib yuborilgan: <b>{streak} kun</b>"
+        )
+
+
+async def send_warnings(
+    group_chat_id: str,
+    group_name: str,
+    warned_students: list[dict],
+) -> None:
+    """
+    Guruhga ogohlantirish va kerak bo'lsa mentorga shaxsiy xabar yuboradi.
+    warned_students: [{name, marsit_id, missed_streak}, ...]
+    """
+    group_text = format_group_warning(group_name, warned_students)
+    if group_text:
+        await _send(group_chat_id, group_text)
+
+    # 2+ marta o'tkazib yuborgan o'quvchilar uchun mentorga xabar
+    if config.MENTOR_CHAT_ID:
+        for s in warned_students:
+            if s["missed_streak"] >= 2:
+                mentor_text = format_mentor_warning(group_name, s)
+                await _send(config.MENTOR_CHAT_ID, mentor_text)
+                logger.info(f"Mentorga ogohlantirish: {s['name']} ({s['missed_streak']} kun)")
+
+
 async def send_morning_reminder(chat_id: str, group_name: str) -> None:
     text = format_morning_reminder(group_name)
     await _send(chat_id, text)
