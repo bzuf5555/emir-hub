@@ -1,3 +1,4 @@
+import asyncio
 import logging
 
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
@@ -11,6 +12,121 @@ logger = logging.getLogger("bot.handlers")
 
 # ConversationHandler holatlari
 WAITING_MESSAGE = 1
+
+
+# ─── Task assignment: mentor tasdiqlash ──────────────────────────────────────
+
+async def ask_assign_task(group_id: str, group_name: str, lesson_title: str) -> None:
+    """
+    Mentorga topshiriq berish haqida so'raydi.
+    Scheduler yoki qo'lda chaqiriladi.
+    """
+    from config import config
+    from agents.notification_agent import get_bot
+
+    if not config.MENTOR_CHAT_ID:
+        logger.warning("MENTOR_CHAT_ID sozlanmagan — task taklifi yuborilmadi")
+        return
+
+    keyboard = [[
+        InlineKeyboardButton("✅ Ha, ber", callback_data=f"task:yes:{group_id}"),
+        InlineKeyboardButton("❌ Yo'q", callback_data=f"task:no:{group_id}"),
+    ]]
+    text = (
+        f"📚 <b>Topshiriq berish vaqti!</b>\n\n"
+        f"👥 Guruh: <b>{group_name}</b>\n"
+        f"📖 Bugungi mavzu: <b>{lesson_title}</b>\n\n"
+        f"Ushbu guruhga topshiriq beraymi?"
+    )
+    bot = get_bot()
+    await bot.send_message(
+        chat_id=config.MENTOR_CHAT_ID,
+        text=text,
+        parse_mode=ParseMode.HTML,
+        reply_markup=InlineKeyboardMarkup(keyboard),
+    )
+    logger.info(f"Mentor ga task taklifi yuborildi: {group_name}")
+
+
+async def on_task_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Ha, ber / Yo'q tugmalarini qayta ishlaydi."""
+    query = update.callback_query
+    await query.answer()
+
+    _, decision, marsit_id = query.data.split(":", 2)
+
+    if decision == "no":
+        await query.edit_message_text(
+            f"❌ {marsit_id} guruhiga topshiriq berilmadi.",
+            parse_mode=ParseMode.HTML
+        )
+        return
+
+    # "Ha, ber" bosildi
+    await query.edit_message_text(
+        f"⏳ Topshiriq berilmoqda...",
+        parse_mode=ParseMode.HTML
+    )
+
+    try:
+        result = await asyncio.get_event_loop().run_in_executor(
+            None, _assign_today_task, int(marsit_id)
+        )
+        if result["success"]:
+            await query.edit_message_text(
+                f"✅ <b>{result['group_name']}</b> guruhiga topshiriq berildi!\n\n"
+                f"📖 Mavzu: <b>{result['lesson_title']}</b>\n"
+                f"👤 O'quvchilar: <b>{result['student_count']}</b> ta",
+                parse_mode=ParseMode.HTML
+            )
+        else:
+            await query.edit_message_text(
+                f"❌ Xato: {result['error']}", parse_mode=ParseMode.HTML
+            )
+    except Exception as e:
+        logger.error(f"Task berish xato: {e}")
+        await query.edit_message_text(f"❌ Xato: {e}", parse_mode=ParseMode.HTML)
+
+
+def _assign_today_task(group_id: int) -> dict:
+    """Sync: bugungi topshiriqni guruhga beradi."""
+    from agents.api_client import get_today_lesson_info, get_group_students, assign_task_to_group, get_groups
+
+    # Guruh nomini olish
+    groups = get_groups()
+    group = next((g for g in groups if g["id"] == group_id), None)
+    group_name = group.get("name", str(group_id)) if group else str(group_id)
+
+    # Bugungi dars elementi
+    lesson = get_today_lesson_info(group_id)
+    if not lesson:
+        return {"success": False, "error": "Bugun bu guruhda dars yo'q"}
+
+    course_element = lesson.get("course_element", {})
+    element_id = course_element.get("id")
+    lesson_title = course_element.get("title_uz", "Noma'lum mavzu")
+
+    if not element_id:
+        return {"success": False, "error": "Dars elementi topilmadi"}
+
+    # O'quvchilar ro'yxati
+    students_progress = lesson.get("students_progress", [])
+    student_ids = [s["student_id"] for s in students_progress]
+
+    if not student_ids:
+        return {"success": False, "error": "O'quvchilar topilmadi"}
+
+    # Topshiriq berish
+    ok = assign_task_to_group(group_id, [element_id], student_ids)
+
+    if ok:
+        return {
+            "success": True,
+            "group_name": group_name,
+            "lesson_title": lesson_title,
+            "student_count": len(student_ids),
+        }
+    return {"success": False, "error": "API xato qaytardi"}
 
 
 # ─── /start — guruhlar ro'yxati ───────────────────────────────────────────────

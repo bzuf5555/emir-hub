@@ -97,7 +97,6 @@ def get_today_results(group_id: int) -> list[dict]:
     """
     Bugungi uyga vazifa natijalarini qaytaradi.
     [{student_id, student_name, is_completed, score, coins_earned}]
-    Agar bugun dars bo'lmasa — bo'sh ro'yxat.
     """
     today = date.today()
     client = _get_authenticated_client()
@@ -120,3 +119,73 @@ def get_today_results(group_id: int) -> list[dict]:
 
     logger.info(f"Guruh {group_id}: {today_str} uchun dars topilmadi")
     return []
+
+
+def get_today_lesson_info(group_id: int) -> dict | None:
+    """
+    Bugungi dars ma'lumotini qaytaradi:
+    {course_element: {id, title_uz}, students_progress: [...]}
+    """
+    today = date.today()
+    client = _get_authenticated_client()
+    url = f"/api/v1/groups/{group_id}/students/progress/by-lesson-days"
+    resp = client.get(url, params={"year": today.year, "month": today.month})
+    resp.raise_for_status()
+
+    lesson_days: list[dict] = resp.json().get("lesson_days", [])
+    today_str = today.isoformat()
+    for day in lesson_days:
+        if day.get("date") == today_str:
+            return day
+    return None
+
+
+def get_group_students(group_id: int) -> list[dict]:
+    """Guruhning barcha o'quvchilarini qaytaradi: [{id, ...}]"""
+    client = _get_authenticated_client()
+    resp = client.get(f"/api/v1/groups/{group_id}?group_id={group_id}&all=false")
+    resp.raise_for_status()
+    data = resp.json()
+    # O'quvchilar attendance dan olinadi
+    attendance_resp = client.get(
+        f"/api/v1/attendance/{group_id}",
+        params={"group_id": group_id, "from_date": date.today().replace(day=1).isoformat(),
+                "till_date": date.today().isoformat(), "all": "false"}
+    )
+    if attendance_resp.status_code == 200:
+        att_data = attendance_resp.json()
+        students = att_data.get("students", [])
+        if students:
+            return students
+    # Fallback: progress dan olinadi
+    progress_resp = client.get(
+        f"/api/v1/groups/{group_id}/students/progress/by-lesson-days",
+        params={"year": date.today().year, "month": date.today().month}
+    )
+    if progress_resp.status_code == 200:
+        lesson_days = progress_resp.json().get("lesson_days", [])
+        if lesson_days:
+            return [{"id": s["student_id"], "name": s["student_name"]}
+                    for s in lesson_days[0].get("students_progress", [])]
+    return []
+
+
+def assign_task_to_group(group_id: int, course_element_ids: list[int], student_ids: list[int]) -> bool:
+    """
+    Guruhga topshiriq beradi.
+
+    API: POST /api/v2/controls/booking/add-task
+    Body: {"group_id": int, "student_ids": [...], "course_element_ids": [...]}
+    """
+    client = _get_authenticated_client()
+    payload = {
+        "group_id": group_id,
+        "student_ids": student_ids,
+        "course_element_ids": course_element_ids,
+    }
+    resp = client.post("/api/v2/controls/booking/add-task", json=payload)
+    if resp.status_code in (200, 201):
+        logger.info(f"Guruh {group_id}: topshiriq berildi. elements={course_element_ids}, students={len(student_ids)}")
+        return True
+    logger.error(f"Topshiriq berish xato {resp.status_code}: {resp.text[:200]}")
+    return False

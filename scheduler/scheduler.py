@@ -13,17 +13,53 @@ tz = pytz.timezone(config.TIMEZONE)
 
 
 async def morning_job() -> None:
-    """09:00 — eslatma yuborish."""
+    """09:00 — eslatma yuborish + topshiriq berish taklifi."""
     logger.info("Ertalab eslatma job boshlandi")
     db = get_db()
     groups = await db.groups.find(
         {"is_active": True, "telegram_chat_id": {"$exists": True, "$ne": None}}
     ).to_list(length=50)
 
+    # 1. Guruh chatlarga eslatma
     for group in groups:
         await notification_agent.send_morning_reminder(group["telegram_chat_id"], group["name"])
 
     logger.info(f"Ertalab eslatma {len(groups)} ta guruhga yuborildi")
+
+    # 2. Mentorga topshiriq berish taklifi (bugun darsi bor guruhlar uchun)
+    await task_assignment_job()
+
+
+async def task_assignment_job() -> None:
+    """Mentorga bugun darsi bor guruhlar uchun topshiriq berish taklifi yuboradi."""
+    from bot.handlers import ask_assign_task
+
+    logger.info("Task assignment job boshlandi")
+
+    try:
+        raw_groups = await asyncio.get_event_loop().run_in_executor(
+            None, lambda: __import__('agents.api_client', fromlist=['get_groups', 'get_today_lesson_info']).get_groups()
+        )
+    except Exception as e:
+        logger.error(f"Guruhlar olishda xato: {e}")
+        return
+
+    from agents.api_client import get_today_lesson_info
+
+    for g in raw_groups:
+        try:
+            lesson = await asyncio.get_event_loop().run_in_executor(
+                None, get_today_lesson_info, g["id"]
+            )
+            if lesson:
+                title = lesson.get("course_element", {}).get("title_uz", "Mavzu")
+                await ask_assign_task(
+                    group_id=str(g["id"]),
+                    group_name=g.get("name", str(g["id"])),
+                    lesson_title=title,
+                )
+        except Exception as e:
+            logger.error(f"Guruh {g['id']} task taklifi xato: {e}")
 
 
 async def evening_job() -> None:

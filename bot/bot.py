@@ -9,6 +9,7 @@ from bot.handlers import (
     cmd_start, cmd_coins, cmd_set_group,
     on_group_selected, on_action_message, on_action_check,
     on_back_start, receive_message, WAITING_MESSAGE,
+    on_task_confirm,
 )
 from config import config
 
@@ -37,6 +38,7 @@ def create_app() -> Application:
     app.add_handler(CallbackQueryHandler(on_group_selected,  pattern=r"^group:"))
     app.add_handler(CallbackQueryHandler(on_action_check,    pattern=r"^action:check:"))
     app.add_handler(CallbackQueryHandler(on_back_start,      pattern=r"^back:start$"))
+    app.add_handler(CallbackQueryHandler(on_task_confirm,    pattern=r"^task:(yes|no):"))
 
     logger.info("Telegram bot sozlandi")
     return app
