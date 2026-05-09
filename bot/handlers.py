@@ -295,25 +295,29 @@ async def on_action_check(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         element      = lesson.get("course_element") or {}
         lesson_title = element.get("title_uz", "Noma'lum mavzu")
         progress     = lesson.get("students_progress", [])
+        is_att       = lesson.get("_source") == "attendance"
 
         solved   = [s for s in progress if s.get("is_completed")]
         unsolved = [s for s in progress if not s.get("is_completed")]
 
-        # Natijani mentor shaxsiy chatga yuborish
+        icon_ok  = "🟢 Keldi"   if is_att else "✅ Bajardi"
+        icon_bad = "🔴 Kelmadi" if is_att else "❌ Bajarmadi"
+
         from config import config
         summary = (
-            f"📊 <b>{group_name}</b> — {lesson_date}\n"
+            f"{'📅 Davomat' if is_att else '📊 Vazifa natijasi'}: "
+            f"<b>{group_name}</b> — {lesson_date}\n"
             f"📖 {lesson_title}\n\n"
         )
         if solved:
-            summary += f"✅ Bajarganlar ({len(solved)}):\n"
+            summary += f"{icon_ok} ({len(solved)}):\n"
             for s in solved:
                 summary += f"  • {s['student_name']}\n"
         if unsolved:
-            summary += f"\n❌ Bajarmaganlar ({len(unsolved)}):\n"
+            summary += f"\n{icon_bad} ({len(unsolved)}):\n"
             for s in unsolved:
                 summary += f"  • {s['student_name']}\n"
-        summary += f"\n📈 {len(solved)}/{len(progress)} ta bajardi"
+        summary += f"\n📈 {len(solved)}/{len(progress)} ta"
 
         # Mentorga shaxsiy
         if config.MENTOR_CHAT_ID:
