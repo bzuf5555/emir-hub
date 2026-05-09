@@ -194,63 +194,9 @@ def get_latest_lesson_info(group_id: int) -> dict | None:
             logger.warning(f"Guruh {group_id} by-lesson-days ({year}/{month}) xato: {ex}")
             continue
 
-    # 2. Fallback: Davomat API
-    logger.info(f"Guruh {group_id}: by-lesson-days bo'sh — davomat API fallback")
-    try:
-        att_resp = client.get(
-            f"/api/v1/attendance/{group_id}",
-            params={
-                "group_id": str(group_id),
-                "from_date": today.replace(day=1).isoformat(),
-                "till_date": today.isoformat(),
-                "all": "false",
-            }
-        )
-        if att_resp.status_code != 200:
-            logger.warning(f"Guruh {group_id} davomat API {att_resp.status_code}")
-            return None
-
-        att_data = att_resp.json()
-        days     = att_data.get("days", [])
-        students = att_data.get("students", [])
-        logger.info(f"Guruh {group_id} davomat: {len(days)} kun, {len(students)} o'quvchi")
-
-        if not days or not students:
-            return None
-
-        # Bugun yoki eng so'nggi kun
-        today_str   = today.isoformat()
-        target_date = today_str if any(d.get("date") == today_str for d in days) \
-                      else max((d.get("date", "") for d in days), default="")
-        if not target_date:
-            return None
-
-        students_progress = []
-        for st in students:
-            att_for_day = next(
-                (a for a in (st.get("attendances") or [])
-                 if a.get("attend_date") == target_date),
-                None
-            )
-            status = att_for_day.get("status", 0) if att_for_day else 0
-            students_progress.append({
-                "student_id":   st.get("student_id"),
-                "student_name": f"{st.get('first_name', '')} {st.get('last_name', '')}".strip(),
-                "is_completed": status == 1,
-                "score":        float(status),
-                "coins_earned": 0,
-                "_source":      "attendance",
-            })
-
-        return {
-            "date":            target_date,
-            "course_element":  {"title_uz": "Davomat (kelgan/kelmagan)", "id": None},
-            "students_progress": students_progress,
-            "_source":         "attendance",
-        }
-    except Exception as ex:
-        logger.error(f"Guruh {group_id} davomat fallback xato: {ex}")
-        return None
+    # by-lesson-days bo'sh — bu guruhda hali quiz/uyga vazifa ma'lumoti yo'q
+    logger.info(f"Guruh {group_id}: by-lesson-days bo'sh — ma'lumot yo'q")
+    return None
 
 
 def assign_task_to_group(group_id: int, course_element_ids: list[int], student_ids: list[int]) -> bool:

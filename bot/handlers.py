@@ -286,7 +286,10 @@ async def on_action_check(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
 
         if not lesson:
             await query.edit_message_text(
-                f"⚠️ <b>{group_name}</b>: hech qanday dars ma'lumoti topilmadi.",
+                f"📭 <b>{group_name}</b>\n\n"
+                f"Uyga vazifa ma'lumoti hali yo'q.\n"
+                f"Sabab: dars o'tilmagan yoki o'quvchilar hali quiz javob bermagan.\n\n"
+                f"<i>23:00 da avtomatik tekshiriladi.</i>",
                 parse_mode=ParseMode.HTML
             )
             return
