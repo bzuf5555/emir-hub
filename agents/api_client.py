@@ -150,9 +150,20 @@ def get_latest_lesson_info(group_id: int) -> dict | None:
     """
     Bugungi yoki eng so'nggi dars ma'lumotini qaytaradi.
     by-lesson-days bo'sh bo'lsa — davomat API dan fallback.
+    Thread-safe: har chaqiruvda yangi client yaratatiladi.
     """
     today = date.today()
-    client = get_client()
+    # Thread-safe: shared client emas, yangi client
+    cookies = _load_cookies()
+    client = _make_client(cookies)
+    if cookies:
+        try:
+            if client.get("/api/v1/auth/check").status_code != 200:
+                _login(client)
+        except Exception:
+            _login(client)
+    else:
+        _login(client)
 
     # 1. by-lesson-days — shu oy va o'tgan oy
     months = [(today.year, today.month)]
