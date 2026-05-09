@@ -263,6 +263,10 @@ async def receive_message(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
 # ─── Hozir tekshirish opsiyasi ────────────────────────────────────────────────
 
 async def on_action_check(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """
+    'Hozir tekshirish' — bugungi yoki eng so'nggi dars natijasini ko'rsatadi.
+    Bugun dars bo'lmasa ham oxirgi dars natijasini qaytaradi.
+    """
     query = update.callback_query
     await query.answer()
 
@@ -272,50 +276,61 @@ async def on_action_check(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     await query.edit_message_text(f"⏳ <b>{group_name}</b> tekshirilmoqda...", parse_mode=ParseMode.HTML)
 
     try:
-        import asyncio
-        from agents import scraper_agent, coin_agent, notification_agent
+        from agents.api_client import get_latest_lesson_info
+        from agents import notification_agent
         from database import get_db as _db
 
-        all_groups = await asyncio.get_event_loop().run_in_executor(
-            None, scraper_agent.scrape_all_groups
+        lesson = await asyncio.get_running_loop().run_in_executor(
+            None, get_latest_lesson_info, int(marsit_id)
         )
-        target = next((g for g in all_groups if g.marsit_id == marsit_id), None)
 
-        if not target or not target.has_lesson_today:
+        if not lesson:
             await query.edit_message_text(
-                f"⏭ <b>{group_name}</b>: bugun dars yo'q yoki topilmadi.",
+                f"⚠️ <b>{group_name}</b>: hech qanday dars ma'lumoti topilmadi.",
                 parse_mode=ParseMode.HTML
             )
             return
 
-        student_dicts = [
-            {"marsit_id": s.marsit_id, "name": s.name, "solved": s.solved}
-            for s in target.students
-        ]
-        result = await coin_agent.process_results(marsit_id, student_dicts)
+        lesson_date  = lesson.get("date", "")
+        element      = lesson.get("course_element") or {}
+        lesson_title = element.get("title_uz", "Noma'lum mavzu")
+        progress     = lesson.get("students_progress", [])
 
-        db = _db()
-        group = await db.groups.find_one({"marsit_id": marsit_id})
-        chat_id = group.get("telegram_chat_id") if group else None
+        solved   = [s for s in progress if s.get("is_completed")]
+        unsolved = [s for s in progress if not s.get("is_completed")]
 
-        if chat_id:
-            await notification_agent.send_evening_results(
-                chat_id=chat_id,
-                group_name=group_name,
-                solved=result["solved"],
-                unsolved=result["unsolved"],
-                total_given=result["total_given"],
-                total_taken=result["total_taken"],
-            )
-            await query.edit_message_text(
-                f"✅ <b>{group_name}</b> natijasi guruhga yuborildi!",
-                parse_mode=ParseMode.HTML
-            )
-        else:
-            await query.edit_message_text(
-                f"✅ Tekshiruv tugadi lekin guruh Telegram chatga ulanmagan.",
-                parse_mode=ParseMode.HTML
-            )
+        # Natijani mentor shaxsiy chatga yuborish
+        from config import config
+        summary = (
+            f"📊 <b>{group_name}</b> — {lesson_date}\n"
+            f"📖 {lesson_title}\n\n"
+        )
+        if solved:
+            summary += f"✅ Bajarganlar ({len(solved)}):\n"
+            for s in solved:
+                summary += f"  • {s['student_name']}\n"
+        if unsolved:
+            summary += f"\n❌ Bajarmaganlar ({len(unsolved)}):\n"
+            for s in unsolved:
+                summary += f"  • {s['student_name']}\n"
+        summary += f"\n📈 {len(solved)}/{len(progress)} ta bajardi"
+
+        # Mentorga shaxsiy
+        if config.MENTOR_CHAT_ID:
+            await notification_agent._send(config.MENTOR_CHAT_ID, summary)
+
+        # Inline xabarga javob
+        from datetime import date as _date
+        today_str = _date.today().isoformat()
+        date_label = "bugungi" if lesson_date == today_str else f"{lesson_date} darsining"
+
+        await query.edit_message_text(
+            f"✅ <b>{group_name}</b> — {date_label} natijasi:\n\n"
+            f"✅ {len(solved)} bajardi | ❌ {len(unsolved)} bajarmadi\n"
+            f"📖 {lesson_title}",
+            parse_mode=ParseMode.HTML
+        )
+
     except Exception as e:
         logger.error(f"Manual check xato: {e}")
         await query.edit_message_text(f"❌ Xato: {e}", parse_mode=ParseMode.HTML)

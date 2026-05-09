@@ -146,6 +146,45 @@ def get_today_lesson_info(group_id: int) -> dict | None:
     return None
 
 
+def get_latest_lesson_info(group_id: int) -> dict | None:
+    """
+    Bugungi darsni qaytaradi. Agar bugun dars bo'lmasa —
+    shu oy ichidagi ENG SO'NGGI darsni qaytaradi.
+    "Hozir tekshirish" uchun ishlatiladi.
+    """
+    today = date.today()
+    client = get_client()
+    resp = client.get(
+        f"/api/v1/groups/{group_id}/students/progress/by-lesson-days",
+        params={"year": today.year, "month": today.month}
+    )
+    resp.raise_for_status()
+
+    lesson_days = resp.json().get("lesson_days", [])
+    if not lesson_days:
+        # Bu oy dars yo'q — o'tgan oyni tekshirish
+        prev_month = today.replace(day=1) - timedelta(days=1)
+        resp2 = client.get(
+            f"/api/v1/groups/{group_id}/students/progress/by-lesson-days",
+            params={"year": prev_month.year, "month": prev_month.month}
+        )
+        if resp2.status_code == 200:
+            lesson_days = resp2.json().get("lesson_days", [])
+
+    if not lesson_days:
+        return None
+
+    today_str = today.isoformat()
+    # Avval bugunni qidirish
+    for day in lesson_days:
+        if day.get("date") == today_str:
+            return day
+
+    # Bugun yo'q — eng so'nggi darsni qaytarish
+    lesson_days_sorted = sorted(lesson_days, key=lambda d: d.get("date", ""), reverse=True)
+    return lesson_days_sorted[0]
+
+
 def assign_task_to_group(group_id: int, course_element_ids: list[int], student_ids: list[int]) -> bool:
     """POST /api/v2/controls/booking/add-task"""
     client = get_client()
