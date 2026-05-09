@@ -9,12 +9,18 @@ class Config:
     MARSIT_PASSWORD: str = os.getenv("MARSIT_PASSWORD", "")
 
     TELEGRAM_BOT_TOKEN: str = os.getenv("TELEGRAM_BOT_TOKEN", "")
-    MENTOR_CHAT_ID: str = os.getenv("MENTOR_CHAT_ID", "")
 
-    # BUG-003: admin chat IDlar — vergul bilan ajratilgan
-    ADMIN_CHAT_IDS: list[str] = [
-        x.strip() for x in os.getenv("ADMIN_CHAT_IDS", "").split(",") if x.strip()
-    ]
+    # MENTOR_CHAT_ID vergul bilan bir nechta ID qabul qiladi: "569913655,5864158348"
+    _mentor_raw: str = os.getenv("MENTOR_CHAT_ID", "")
+    MENTOR_CHAT_ID: str = _mentor_raw.split(",")[0].strip()           # birinchi ID (asosiy)
+    MENTOR_CHAT_IDS: list[str] = [x.strip() for x in _mentor_raw.split(",") if x.strip()]
+
+    # BUG-003: ADMIN_CHAT_IDS — MENTOR_CHAT_IDS bilan birlashtiriladi
+    ADMIN_CHAT_IDS: list[str] = list({
+        x.strip()
+        for x in (os.getenv("ADMIN_CHAT_IDS", "") + "," + _mentor_raw).split(",")
+        if x.strip()
+    })
 
     MONGODB_URI: str = os.getenv("MONGODB_URI", "mongodb://localhost:27017")
     MONGODB_DB: str = os.getenv("MONGODB_DB", "emir_hub")
