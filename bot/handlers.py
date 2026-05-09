@@ -282,19 +282,25 @@ async def on_action_check(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         from database import get_db as _db
 
         db = _db()
-        # Guruhning bitta o'quvchisini MongoDB dan olish
+        # 1. MongoDB dan student_id olishga urinish
         student_doc = await db.students.find_one({"group_id": marsit_id})
 
-        if not student_doc:
+        if student_doc:
+            student_id = int(student_doc["marsit_id"])
+        else:
+            # 2. Fallback: API orqali birinchi o'quvchi ID sini olish
+            from agents.api_client import get_any_student_id
+            student_id = await asyncio.get_running_loop().run_in_executor(
+                None, get_any_student_id, int(marsit_id)
+            )
+
+        if not student_id:
             await query.edit_message_text(
                 f"📭 <b>{group_name}</b>\n\n"
-                f"O'quvchilar hali botda ro'yxatga olinmagan.\n"
-                f"23:00 da avtomatik tekshiruvdan keyin ma'lumot to'planadi.",
+                f"O'quvchilar topilmadi. Guruh ulanganligini tekshiring.",
                 parse_mode=ParseMode.HTML
             )
             return
-
-        student_id = int(student_doc["marsit_id"])
         group_id   = int(marsit_id)
 
         # Berilgan topshiriqlarni olish

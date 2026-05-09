@@ -199,6 +199,50 @@ def get_latest_lesson_info(group_id: int) -> dict | None:
     return None
 
 
+def get_any_student_id(group_id: int) -> int | None:
+    """
+    Guruhdan istalgan bitta o'quvchi ID sini qaytaradi.
+    by-lesson-days → attendance → None ketma-ketlikda.
+    """
+    today = date.today()
+    client = get_client()
+
+    # 1. by-lesson-days (quiz bor guruhlar uchun)
+    for year, month in [(today.year, today.month),
+                        (today.year, today.month - 1) if today.month > 1 else (today.year - 1, 12)]:
+        try:
+            resp = client.get(
+                f"/api/v1/groups/{group_id}/students/progress/by-lesson-days",
+                params={"year": year, "month": month}
+            )
+            if resp.status_code == 200:
+                lesson_days = resp.json().get("lesson_days", [])
+                for day in lesson_days:
+                    progress = day.get("students_progress", [])
+                    if progress:
+                        return progress[0]["student_id"]
+        except Exception:
+            pass
+
+    # 2. Attendance API fallback
+    try:
+        resp = client.get(
+            f"/api/v1/attendance/{group_id}",
+            params={"group_id": str(group_id),
+                    "from_date": today.replace(day=1).isoformat(),
+                    "till_date": today.isoformat(),
+                    "all": "false"}
+        )
+        if resp.status_code == 200:
+            students = resp.json().get("students", [])
+            if students:
+                return students[0].get("student_id")
+    except Exception:
+        pass
+
+    return None
+
+
 def get_tasks_for_student(group_id: int, student_id: int) -> list[dict]:
     """
     Guruhga berilgan topshiriqlar ro'yxati (bitta o'quvchi orqali).
