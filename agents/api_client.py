@@ -154,81 +154,92 @@ def get_latest_lesson_info(group_id: int) -> dict | None:
     today = date.today()
     client = get_client()
 
-    # 1. by-lesson-days (quiz completion)
-    for year, month in [(today.year, today.month),
-                        *((today.year, today.month - 1),) if today.month > 1
-                        else ((today.year - 1, 12),)]:
-        resp = client.get(
-            f"/api/v1/groups/{group_id}/students/progress/by-lesson-days",
-            params={"year": year, "month": month}
+    # 1. by-lesson-days — shu oy va o'tgan oy
+    months = [(today.year, today.month)]
+    if today.month > 1:
+        months.append((today.year, today.month - 1))
+    else:
+        months.append((today.year - 1, 12))
+
+    for year, month in months:
+        try:
+            resp = client.get(
+                f"/api/v1/groups/{group_id}/students/progress/by-lesson-days",
+                params={"year": year, "month": month}
+            )
+            if resp.status_code != 200:
+                continue
+            lesson_days = resp.json().get("lesson_days", [])
+            if not lesson_days:
+                continue
+            # Bugun bor bo'lsa — uni qaytarish
+            today_str = today.isoformat()
+            for day in lesson_days:
+                if day.get("date") == today_str:
+                    return day
+            # Yo'q bo'lsa — eng so'nggisini qaytarish
+            return sorted(lesson_days, key=lambda d: d.get("date", ""), reverse=True)[0]
+        except Exception as ex:
+            logger.warning(f"Guruh {group_id} by-lesson-days ({year}/{month}) xato: {ex}")
+            continue
+
+    # 2. Fallback: Davomat API
+    logger.info(f"Guruh {group_id}: by-lesson-days bo'sh — davomat API fallback")
+    try:
+        att_resp = client.get(
+            f"/api/v1/attendance/{group_id}",
+            params={
+                "group_id": str(group_id),
+                "from_date": today.replace(day=1).isoformat(),
+                "till_date": today.isoformat(),
+                "all": "false",
+            }
         )
-        if resp.status_code != 200:
-            continue
-        lesson_days = resp.json().get("lesson_days", [])
-        if not lesson_days:
-            continue
+        if att_resp.status_code != 200:
+            logger.warning(f"Guruh {group_id} davomat API {att_resp.status_code}")
+            return None
 
-        today_str = today.isoformat()
-        for day in lesson_days:
-            if day.get("date") == today_str:
-                return day
-        # Eng so'nggi dars
-        return sorted(lesson_days, key=lambda d: d.get("date", ""), reverse=True)[0]
+        att_data = att_resp.json()
+        days     = att_data.get("days", [])
+        students = att_data.get("students", [])
+        logger.info(f"Guruh {group_id} davomat: {len(days)} kun, {len(students)} o'quvchi")
 
-    # 2. Fallback: Davomat API (attendance)
-    logger.info(f"Guruh {group_id}: by-lesson-days bo'sh — davomat API ga o'tilmoqda")
-    att_resp = client.get(
-        f"/api/v1/attendance/{group_id}",
-        params={
-            "group_id": group_id,
-            "from_date": today.replace(day=1).isoformat(),
-            "till_date": today.isoformat(),
-            "all": "false",
+        if not days or not students:
+            return None
+
+        # Bugun yoki eng so'nggi kun
+        today_str   = today.isoformat()
+        target_date = today_str if any(d.get("date") == today_str for d in days) \
+                      else max((d.get("date", "") for d in days), default="")
+        if not target_date:
+            return None
+
+        students_progress = []
+        for st in students:
+            att_for_day = next(
+                (a for a in (st.get("attendances") or [])
+                 if a.get("attend_date") == target_date),
+                None
+            )
+            status = att_for_day.get("status", 0) if att_for_day else 0
+            students_progress.append({
+                "student_id":   st.get("student_id"),
+                "student_name": f"{st.get('first_name', '')} {st.get('last_name', '')}".strip(),
+                "is_completed": status == 1,
+                "score":        float(status),
+                "coins_earned": 0,
+                "_source":      "attendance",
+            })
+
+        return {
+            "date":            target_date,
+            "course_element":  {"title_uz": "Davomat (kelgan/kelmagan)", "id": None},
+            "students_progress": students_progress,
+            "_source":         "attendance",
         }
-    )
-    if att_resp.status_code != 200:
+    except Exception as ex:
+        logger.error(f"Guruh {group_id} davomat fallback xato: {ex}")
         return None
-
-    att_data = att_resp.json()
-    days = att_data.get("days", [])
-    students = att_data.get("students", [])
-
-    if not days or not students:
-        return None
-
-    # Bugungi yoki eng so'nggi davomat kuni
-    today_str = today.isoformat()
-    target_date = today_str
-    if not any(d.get("date") == today_str for d in days):
-        # Bugun yo'q — oxirgi kunni ol
-        target_date = max((d.get("date", "") for d in days), default="")
-
-    if not target_date:
-        return None
-
-    # Davomat strukturasini by-lesson-days formatiga o'girish
-    students_progress = []
-    for st in students:
-        att_for_day = next(
-            (a for a in (st.get("attendances") or []) if a.get("attend_date") == target_date),
-            None
-        )
-        status = att_for_day.get("status", 0) if att_for_day else 0
-        students_progress.append({
-            "student_id": st.get("student_id"),
-            "student_name": f"{st.get('first_name', '')} {st.get('last_name', '')}".strip(),
-            "is_completed": status == 1,   # 1=keldi, 0=kelmadi
-            "score": float(status),
-            "coins_earned": 0,
-            "_source": "attendance",        # fallback belgisi
-        })
-
-    return {
-        "date": target_date,
-        "course_element": {"title_uz": "Davomat (kelgan/kelmagan)", "id": None},
-        "students_progress": students_progress,
-        "_source": "attendance",
-    }
 
 
 def assign_task_to_group(group_id: int, course_element_ids: list[int], student_ids: list[int]) -> bool:
