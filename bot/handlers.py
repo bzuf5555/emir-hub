@@ -318,45 +318,76 @@ async def on_action_check(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             return
 
         # Har bir topshiriq uchun o'quvchilar javobini tekshirish
-        lines = [f"📋 <b>{group_name}</b> — Berilgan topshiriqlar\n"]
+        from datetime import date as _date
+        today_str     = _date.today().strftime("%d.%m.%Y")
+        total_students_set: set = set()
         total_submitted = 0
         total_pending   = 0
+        inline_parts    = []   # inline xabar uchun
+        detail_lines    = [f"╔══════════════════════════════╗",
+                           f"║  📋 TOPSHIRIQ NATIJASI       ║",
+                           f"╚══════════════════════════════╝",
+                           f"",
+                           f"👥 <b>{group_name}</b>",
+                           f"📅 Tekshiruv: <b>{today_str}</b>",
+                           f""]
 
         for task in tasks:
             element_id  = task["id"]
             title       = task.get("title_uz") or task.get("title_ru") or f"Topshiriq {element_id}"
+            module_num  = task.get("module", "")
             submissions = await asyncio.get_running_loop().run_in_executor(
                 None, get_element_submissions, group_id, element_id
             )
 
             submitted = [s for s in submissions if s.get("answer") is not None]
             pending   = [s for s in submissions if s.get("answer") is None]
+            all_names = [f"{s.get('first_name','')} {s.get('last_name','')}".strip()
+                         for s in submissions]
+
             total_submitted += len(submitted)
             total_pending   += len(pending)
+            for s in submissions:
+                total_students_set.add(s["id"])
 
-            lines.append(f"\n📖 <b>{title}</b>")
+            # Detail (shaxsiy xabar)
+            detail_lines.append(f"📖 <b>{title}</b>" +
+                                 (f" (Modul {module_num})" if module_num else ""))
+            detail_lines.append(f"👤 Berilgan: {', '.join(all_names) or '—'}")
+            detail_lines.append(f"📅 Berilgan sana: <b>{today_str}</b>")
+
             if submitted:
-                lines.append(f"✅ Topshirdi ({len(submitted)}):")
+                detail_lines.append(f"✅ Topshirdi ({len(submitted)}):")
                 for s in submitted:
-                    lines.append(f"  • {s.get('first_name','')} {s.get('last_name','')}")
+                    detail_lines.append(f"  • {s.get('first_name','')} {s.get('last_name','')}")
             if pending:
-                lines.append(f"❌ Topshirmadi ({len(pending)}):")
+                detail_lines.append(f"❌ Topshirmadi ({len(pending)}):")
                 for s in pending:
-                    lines.append(f"  • {s.get('first_name','')} {s.get('last_name','')}")
+                    detail_lines.append(f"  • {s.get('first_name','')} {s.get('last_name','')}")
+            detail_lines.append("")
 
-        summary = "\n".join(lines)
-        summary += f"\n\n📈 Jami: {total_submitted} topshirdi | {total_pending} topshirmadi"
+            # Inline qisqa
+            inline_parts.append(
+                f"📖 <b>{title}</b>: ✅{len(submitted)} | ❌{len(pending)}"
+            )
+
+        total_st = len(total_students_set)
+        detail_lines.append(f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+        detail_lines.append(f"📈 Jami: {total_submitted}/{total_st} ta topshirdi")
+
+        full_summary = "\n".join(detail_lines)
 
         # Mentorga shaxsiy yuborish
         if config.MENTOR_CHAT_ID:
-            await notification_agent._send(config.MENTOR_CHAT_ID, summary)
+            await notification_agent._send(config.MENTOR_CHAT_ID, full_summary)
 
-        await query.edit_message_text(
-            f"✅ <b>{group_name}</b> tekshiruv tugadi!\n\n"
-            f"✅ {total_submitted} topshirdi | ❌ {total_pending} topshirmadi\n\n"
-            f"<i>To'liq natija sizga shaxsiy yuborildi.</i>",
-            parse_mode=ParseMode.HTML
+        # Inline xabarda ham barcha ma'lumot
+        inline_text = (
+            f"📋 <b>{group_name}</b> — {today_str}\n\n" +
+            "\n".join(inline_parts) +
+            f"\n\n📈 {total_submitted}/{total_st} ta topshirdi"
         )
+        await query.edit_message_text(inline_text, parse_mode=ParseMode.HTML)
 
     except Exception as e:
         logger.error(f"Manual check xato: {e}")
