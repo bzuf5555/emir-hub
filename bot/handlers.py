@@ -375,19 +375,8 @@ async def on_action_check(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         detail_lines.append(f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
         detail_lines.append(f"📈 Jami: {total_submitted}/{total_st} ta topshirdi")
 
-        full_summary = "\n".join(detail_lines)
-
-        # Mentorga shaxsiy yuborish
-        if config.MENTOR_CHAT_ID:
-            await notification_agent._send(config.MENTOR_CHAT_ID, full_summary)
-
-        # Inline xabarda ham barcha ma'lumot
-        inline_text = (
-            f"📋 <b>{group_name}</b> — {today_str}\n\n" +
-            "\n".join(inline_parts) +
-            f"\n\n📈 {total_submitted}/{total_st} ta topshirdi"
-        )
-        await query.edit_message_text(inline_text, parse_mode=ParseMode.HTML)
+        # To'liq natija to'g'ridan inline xabarda
+        await query.edit_message_text("\n".join(detail_lines), parse_mode=ParseMode.HTML)
 
     except Exception as e:
         logger.error(f"Manual check xato: {e}")
