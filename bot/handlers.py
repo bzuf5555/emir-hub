@@ -276,65 +276,79 @@ async def on_action_check(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     await query.edit_message_text(f"⏳ <b>{group_name}</b> tekshirilmoqda...", parse_mode=ParseMode.HTML)
 
     try:
-        from agents.api_client import get_latest_lesson_info
+        from agents.api_client import get_tasks_for_student, get_element_submissions
         from agents import notification_agent
+        from config import config
         from database import get_db as _db
 
-        lesson = await asyncio.get_running_loop().run_in_executor(
-            None, get_latest_lesson_info, int(marsit_id)
-        )
+        db = _db()
+        # Guruhning bitta o'quvchisini MongoDB dan olish
+        student_doc = await db.students.find_one({"group_id": marsit_id})
 
-        if not lesson:
+        if not student_doc:
             await query.edit_message_text(
                 f"📭 <b>{group_name}</b>\n\n"
-                f"Uyga vazifa ma'lumoti hali yo'q.\n"
-                f"Sabab: dars o'tilmagan yoki o'quvchilar hali quiz javob bermagan.\n\n"
-                f"<i>23:00 da avtomatik tekshiriladi.</i>",
+                f"O'quvchilar hali botda ro'yxatga olinmagan.\n"
+                f"23:00 da avtomatik tekshiruvdan keyin ma'lumot to'planadi.",
                 parse_mode=ParseMode.HTML
             )
             return
 
-        lesson_date  = lesson.get("date", "")
-        element      = lesson.get("course_element") or {}
-        lesson_title = element.get("title_uz", "Noma'lum mavzu")
-        progress     = lesson.get("students_progress", [])
-        is_att       = lesson.get("_source") == "attendance"
+        student_id = int(student_doc["marsit_id"])
+        group_id   = int(marsit_id)
 
-        solved   = [s for s in progress if s.get("is_completed")]
-        unsolved = [s for s in progress if not s.get("is_completed")]
-
-        icon_ok  = "🟢 Keldi"   if is_att else "✅ Bajardi"
-        icon_bad = "🔴 Kelmadi" if is_att else "❌ Bajarmadi"
-
-        from config import config
-        summary = (
-            f"{'📅 Davomat' if is_att else '📊 Vazifa natijasi'}: "
-            f"<b>{group_name}</b> — {lesson_date}\n"
-            f"📖 {lesson_title}\n\n"
+        # Berilgan topshiriqlarni olish
+        tasks = await asyncio.get_running_loop().run_in_executor(
+            None, get_tasks_for_student, group_id, student_id
         )
-        if solved:
-            summary += f"{icon_ok} ({len(solved)}):\n"
-            for s in solved:
-                summary += f"  • {s['student_name']}\n"
-        if unsolved:
-            summary += f"\n{icon_bad} ({len(unsolved)}):\n"
-            for s in unsolved:
-                summary += f"  • {s['student_name']}\n"
-        summary += f"\n📈 {len(solved)}/{len(progress)} ta"
 
-        # Mentorga shaxsiy
+        if not tasks:
+            await query.edit_message_text(
+                f"📭 <b>{group_name}</b>\n\n"
+                f"Hali hech qanday topshiriq berilmagan.\n"
+                f"Marsit.uz → Topshiriqlar → Topshiriq berish orqali bering.",
+                parse_mode=ParseMode.HTML
+            )
+            return
+
+        # Har bir topshiriq uchun o'quvchilar javobini tekshirish
+        lines = [f"📋 <b>{group_name}</b> — Berilgan topshiriqlar\n"]
+        total_submitted = 0
+        total_pending   = 0
+
+        for task in tasks:
+            element_id  = task["id"]
+            title       = task.get("title_uz") or task.get("title_ru") or f"Topshiriq {element_id}"
+            submissions = await asyncio.get_running_loop().run_in_executor(
+                None, get_element_submissions, group_id, element_id
+            )
+
+            submitted = [s for s in submissions if s.get("answer") is not None]
+            pending   = [s for s in submissions if s.get("answer") is None]
+            total_submitted += len(submitted)
+            total_pending   += len(pending)
+
+            lines.append(f"\n📖 <b>{title}</b>")
+            if submitted:
+                lines.append(f"✅ Topshirdi ({len(submitted)}):")
+                for s in submitted:
+                    lines.append(f"  • {s.get('first_name','')} {s.get('last_name','')}")
+            if pending:
+                lines.append(f"❌ Topshirmadi ({len(pending)}):")
+                for s in pending:
+                    lines.append(f"  • {s.get('first_name','')} {s.get('last_name','')}")
+
+        summary = "\n".join(lines)
+        summary += f"\n\n📈 Jami: {total_submitted} topshirdi | {total_pending} topshirmadi"
+
+        # Mentorga shaxsiy yuborish
         if config.MENTOR_CHAT_ID:
             await notification_agent._send(config.MENTOR_CHAT_ID, summary)
 
-        # Inline xabarga javob
-        from datetime import date as _date
-        today_str = _date.today().isoformat()
-        date_label = "bugungi" if lesson_date == today_str else f"{lesson_date} darsining"
-
         await query.edit_message_text(
-            f"✅ <b>{group_name}</b> — {date_label} natijasi:\n\n"
-            f"✅ {len(solved)} bajardi | ❌ {len(unsolved)} bajarmadi\n"
-            f"📖 {lesson_title}",
+            f"✅ <b>{group_name}</b> tekshiruv tugadi!\n\n"
+            f"✅ {total_submitted} topshirdi | ❌ {total_pending} topshirmadi\n\n"
+            f"<i>To'liq natija sizga shaxsiy yuborildi.</i>",
             parse_mode=ParseMode.HTML
         )
 

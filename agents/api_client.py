@@ -199,6 +199,43 @@ def get_latest_lesson_info(group_id: int) -> dict | None:
     return None
 
 
+def get_tasks_for_student(group_id: int, student_id: int) -> list[dict]:
+    """
+    Guruhga berilgan topshiriqlar ro'yxati (bitta o'quvchi orqali).
+    GET /api/v2/controls/booking/tasks-teacher
+    Qaytaradi: [{id, title_uz, status, ...}]
+    status="pending" → bajarilmagan, boshqa → bajarilgan
+    """
+    client = get_client()
+    resp = client.get(
+        "/api/v2/controls/booking/tasks-teacher",
+        params={"group_id": group_id, "student_id": student_id}
+    )
+    if resp.status_code != 200:
+        logger.warning(f"tasks-teacher {group_id}/{student_id}: {resp.status_code}")
+        return []
+    data = resp.json()
+    return data if isinstance(data, list) else []
+
+
+def get_element_submissions(group_id: int, element_id: int) -> list[dict]:
+    """
+    Berilgan topshiriq uchun barcha o'quvchilar javobi.
+    GET /api/v1/course_elements/group/{id}/course_element/{eid}/student_projects
+    Qaytaradi: [{id, first_name, last_name, answer}]
+    answer=None → topshirilmagan, answer={...} → topshirilgan
+    """
+    client = get_client()
+    resp = client.get(
+        f"/api/v1/course_elements/group/{group_id}/course_element/{element_id}/student_projects"
+    )
+    if resp.status_code != 200:
+        logger.warning(f"student_projects {group_id}/{element_id}: {resp.status_code}")
+        return []
+    data = resp.json()
+    return data.get("students", [])
+
+
 def assign_task_to_group(group_id: int, course_element_ids: list[int], student_ids: list[int]) -> bool:
     """POST /api/v2/controls/booking/add-task"""
     client = get_client()
