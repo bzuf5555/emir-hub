@@ -353,6 +353,19 @@ async def on_back_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
 # ─── Qolgan buyruqlar ─────────────────────────────────────────────────────────
 
 @admin_only
+async def cmd_weekly(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """/hisobot — haftalik hisobotni hozir yuborish."""
+    await update.message.reply_text("⏳ Haftalik hisobot tayyorlanmoqda...")
+    try:
+        from scheduler.scheduler import weekly_report_job
+        await weekly_report_job()
+        await update.message.reply_text("✅ Haftalik hisobot yuborildi!")
+    except Exception as e:
+        logger.error(f"/hisobot xato: {e}")
+        await update.message.reply_text(f"❌ Xato: {e}")
+
+
+@admin_only
 async def cmd_coins(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     students = await get_leaderboard(20)
     if not students:

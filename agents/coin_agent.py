@@ -1,5 +1,5 @@
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from database import get_db
 from config import config
@@ -102,3 +102,80 @@ async def get_leaderboard(limit: int = 20) -> list[dict]:
         {"is_active": True}, {"name": 1, "coin_balance": 1}
     ).sort("coin_balance", -1).limit(limit)
     return await cursor.to_list(length=limit)
+
+
+async def get_weekly_stats(group_marsit_id: str) -> dict:
+    """
+    O'tgan 7 kun uchun guruh statistikasini qaytaradi.
+
+    Qaytaradi:
+    {
+      "week_start": date, "week_end": date,
+      "check_days": int,                     # necha kun tekshirilgan
+      "group_avg_pct": float,                # guruh o'rtacha %
+      "total_given": int, "total_taken": int,
+      "students": [
+          {"name", "completed", "missed", "coins_earned", "coins_lost"},
+          ...
+      ]
+    }
+    """
+    db = get_db()
+    now     = datetime.now(timezone.utc)
+    week_end   = now.replace(hour=23, minute=59, second=59)
+    week_start = (now - timedelta(days=6)).replace(hour=0, minute=0, second=0, microsecond=0)
+
+    # Hafta davomidagi barcha tranzaksiyalar (guruh o'quvchilari)
+    students_in_group = await db.students.find(
+        {"group_id": group_marsit_id, "is_active": True},
+        {"marsit_id": 1, "name": 1, "coin_balance": 1}
+    ).to_list(length=200)
+
+    marsit_ids = [s["marsit_id"] for s in students_in_group]
+    student_map = {s["marsit_id"]: s["name"] for s in students_in_group}
+
+    txs = await db.coin_transactions.find({
+        "student_marsit_id": {"$in": marsit_ids},
+        "created_at": {"$gte": week_start, "$lte": week_end},
+    }).to_list(length=5000)
+
+    # Har o'quvchi uchun hisob
+    stats: dict[str, dict] = {}
+    for mid in marsit_ids:
+        stats[mid] = {"name": student_map[mid], "completed": 0, "missed": 0,
+                      "coins_earned": 0, "coins_lost": 0}
+
+    for tx in txs:
+        mid = tx["student_marsit_id"]
+        if mid not in stats:
+            continue
+        if tx["amount"] > 0:
+            stats[mid]["completed"] += 1
+            stats[mid]["coins_earned"] += tx["amount"]
+        else:
+            stats[mid]["missed"] += 1
+            stats[mid]["coins_lost"] += abs(tx["amount"])
+
+    # Tekshirilgan kunlar soni (check_logs)
+    logs = await db.check_logs.find({
+        "group_id": group_marsit_id,
+        "check_type": "evening",
+        "checked_at": {"$gte": week_start},
+    }).to_list(length=50)
+    check_days = len(logs)
+
+    students_list = sorted(stats.values(), key=lambda x: x["completed"], reverse=True)
+
+    total_checks = check_days * len(marsit_ids) if check_days and marsit_ids else 0
+    total_completed = sum(s["completed"] for s in students_list)
+    group_avg = round(total_completed / total_checks * 100, 1) if total_checks else 0.0
+
+    return {
+        "week_start": week_start.date(),
+        "week_end": week_end.date(),
+        "check_days": check_days,
+        "group_avg_pct": group_avg,
+        "total_given": sum(s["coins_earned"] for s in students_list),
+        "total_taken": sum(s["coins_lost"] for s in students_list),
+        "students": students_list,
+    }

@@ -182,6 +182,40 @@ async def evening_job() -> None:
 
 # ─── Scheduler ────────────────────────────────────────────────────────────────
 
+async def weekly_report_job() -> None:
+    """Har dushanba 09:00 — haftalik hisobot mentorga."""
+    if not config.MENTOR_CHAT_ID:
+        logger.warning("MENTOR_CHAT_ID sozlanmagan — haftalik hisobot o'tkazib yuborildi")
+        return
+
+    logger.info("Haftalik hisobot job boshlandi")
+
+    try:
+        from agents.api_client import get_groups as _get_groups
+        raw_groups = await _run_sync(_get_groups)
+    except Exception as e:
+        logger.error(f"Guruhlar olishda xato: {e}")
+        return
+
+    from agents.coin_agent import get_weekly_stats
+
+    for g in raw_groups:
+        try:
+            stats = await get_weekly_stats(str(g["id"]))
+            if stats["check_days"] == 0:
+                logger.info(f"Guruh {g['name']}: hafta davomida tekshiruv yo'q, o'tkazib yuborildi")
+                continue
+            await notification_agent.send_weekly_report(
+                chat_id=config.MENTOR_CHAT_ID,
+                group_name=g.get("name", str(g["id"])),
+                stats=stats,
+            )
+        except Exception as e:
+            logger.error(f"Guruh {g['id']} haftalik hisobot xato: {e}")
+
+    logger.info("Haftalik hisobot yuborildi")
+
+
 def create_scheduler() -> AsyncIOScheduler:
     scheduler = AsyncIOScheduler(timezone=tz)
 
@@ -189,17 +223,21 @@ def create_scheduler() -> AsyncIOScheduler:
     evening_h, evening_m = map(int, config.CHECK_TIME_EVENING.split(":"))
 
     # 09:00 — eslatma + topshiriq taklifi + bajarmagan ro'yxat
-    scheduler.add_job(morning_job,              "cron", hour=morning_h, minute=morning_m, id="morning")
-    scheduler.add_job(unsubmitted_report_job,   "cron", hour=morning_h, minute=morning_m, id="unsubmitted_9")
+    scheduler.add_job(morning_job,            "cron", hour=morning_h, minute=morning_m, id="morning")
+    scheduler.add_job(unsubmitted_report_job, "cron", hour=morning_h, minute=morning_m, id="unsubmitted_9")
 
     # 10:00 — bajarmagan ro'yxat (ikkinchi eslatma)
-    scheduler.add_job(unsubmitted_report_job,   "cron", hour=10, minute=0, id="unsubmitted_10")
+    scheduler.add_job(unsubmitted_report_job, "cron", hour=10, minute=0, id="unsubmitted_10")
 
     # 23:00 — natijalar
-    scheduler.add_job(evening_job,              "cron", hour=evening_h, minute=evening_m, id="evening")
+    scheduler.add_job(evening_job,            "cron", hour=evening_h, minute=evening_m, id="evening")
+
+    # Har dushanba 09:00 — haftalik hisobot
+    scheduler.add_job(weekly_report_job,      "cron", day_of_week="mon",
+                      hour=morning_h, minute=morning_m, id="weekly")
 
     logger.info(
-        f"Scheduler: {config.CHECK_TIME_MORNING}, 10:00 (unsubmitted), "
-        f"{config.CHECK_TIME_EVENING} ({config.TIMEZONE})"
+        f"Scheduler: {config.CHECK_TIME_MORNING} (dushanba: haftalik hisobot ham), "
+        f"10:00, {config.CHECK_TIME_EVENING} ({config.TIMEZONE})"
     )
     return scheduler

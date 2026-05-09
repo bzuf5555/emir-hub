@@ -195,6 +195,72 @@ async def send_evening_results(
     await _send(chat_id, text)
 
 
+async def send_weekly_report(chat_id: str, group_name: str, stats: dict) -> None:
+    """Haftalik hisobot — mentorga shaxsiy."""
+    text = _format_weekly_report(group_name, stats)
+    await _send(chat_id, text)
+
+
+def _format_weekly_report(group_name: str, stats: dict) -> str:
+    week_start = stats["week_start"].strftime("%d.%m.%Y")
+    week_end   = stats["week_end"].strftime("%d.%m.%Y")
+    check_days = stats["check_days"]
+    avg        = stats["group_avg_pct"]
+    students   = stats["students"]
+
+    # Emoji orqali o'rtacha ko'rsatish
+    avg_emoji = "🟢" if avg >= 75 else "🟡" if avg >= 50 else "🔴"
+
+    lines = [
+        "╔══════════════════════════════════╗",
+        "║   📊  HAFTALIK HISOBOT           ║",
+        "╚══════════════════════════════════╝",
+        "",
+        f"📅 <b>{week_start} — {week_end}</b>",
+        f"👥 Guruh: <b>{group_name}</b>",
+        f"📆 Tekshirilgan kunlar: <b>{check_days}</b>",
+        f"{avg_emoji} Guruh o'rtacha: <b>{avg}%</b>",
+        f"💰 Berildi: <b>+{stats['total_given']} 🪙</b>  |  "
+        f"💸 Ayirildi: <b>-{stats['total_taken']} 🪙</b>",
+        "",
+    ]
+
+    # Eng faol (yuqoridan 3 ta)
+    active = [s for s in students if s["completed"] > 0][:3]
+    if active:
+        lines.append("🏆 <b>ENG FAOL:</b>")
+        lines.append("━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+        for i, s in enumerate(active, 1):
+            total = s["completed"] + s["missed"]
+            lines.append(
+                f"  {i}. {s['name']} — {s['completed']}/{total} ✅  "
+                f"+{s['coins_earned']} 🪙"
+            )
+        lines.append("")
+
+    # Eng dangasa (pastdan 3 ta, missed > 0)
+    lazy = sorted([s for s in students if s["missed"] > 0],
+                  key=lambda x: x["missed"], reverse=True)[:3]
+    if lazy:
+        lines.append("😴 <b>ENG KO'P O'TKAZGAN:</b>")
+        lines.append("━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+        for i, s in enumerate(lazy, 1):
+            total = s["completed"] + s["missed"]
+            lines.append(
+                f"  {i}. {s['name']} — {s['missed']}/{total} ❌  "
+                f"-{s['coins_lost']} 🪙"
+            )
+        lines.append("")
+
+    # Hammasini bajarganlar
+    perfect = [s for s in students if s["missed"] == 0 and s["completed"] > 0]
+    if perfect:
+        lines.append(f"⭐ <b>100% bajarganlar ({len(perfect)} ta):</b>")
+        lines.append("  " + ", ".join(s["name"] for s in perfect))
+
+    return "\n".join(lines)
+
+
 async def _send(chat_id: str, text: str) -> None:
     try:
         bot = get_bot()
