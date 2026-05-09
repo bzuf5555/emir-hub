@@ -353,25 +353,35 @@ async def on_back_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
 # ─── Qolgan buyruqlar ─────────────────────────────────────────────────────────
 
 async def cmd_status(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """/status — ulangan guruhlar ro'yxati."""
+    """/status — ulangan guruhlar ro'yxati (Telegram nom + Marsit nom)."""
     db = get_db()
     groups = await db.groups.find({"is_active": True}).to_list(length=50)
 
     if not groups:
         await update.message.reply_text(
             "❌ Hech qanday guruh ulanmagan.\n"
-            "Guruh chatida /setgroup <marsit_id> yuboring."
+            "Guruh chatida /setgroup <guruh_nomi> yuboring.\n"
+            "Misol: /setgroup INPR-1954"
         )
         return
 
-    lines = ["📋 <b>Ulangan guruhlar:</b>\n"]
-    for g in groups:
-        if g.get("telegram_chat_id"):
-            lines.append(f"✅ <b>{g.get('name', g['marsit_id'])}</b> (ID: {g['marsit_id']})")
-        else:
-            lines.append(f"⚠️ <b>{g.get('name', g['marsit_id'])}</b> — Telegram ID yo'q")
+    linked   = [g for g in groups if g.get("telegram_chat_id")]
+    unlinked = [g for g in groups if not g.get("telegram_chat_id")]
 
-    lines.append(f"\n📊 Jami: {len(groups)} ta guruh")
+    lines = [f"📋 <b>Guruhlar holati</b> ({len(groups)} ta)\n"]
+
+    if linked:
+        lines.append("✅ <b>Ulangan:</b>")
+        for g in linked:
+            marsit_name   = g.get("name", g["marsit_id"])
+            telegram_name = g.get("telegram_name", "—")
+            lines.append(f"  • <b>{marsit_name}</b> → {telegram_name}")
+
+    if unlinked:
+        lines.append("\n⚠️ <b>Ulanmagan (Telegram ID yo'q):</b>")
+        for g in unlinked:
+            lines.append(f"  • {g.get('name', g['marsit_id'])}")
+
     await update.message.reply_text("\n".join(lines), parse_mode=ParseMode.HTML)
 
 
@@ -404,17 +414,60 @@ async def cmd_coins(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
 @admin_only
 async def cmd_set_group(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """
+    /setgroup <nom_yoki_id>
+    Qabul qiladi: "INPR-1954", "nBG-2999", "1608" — har qanday format.
+    Marsit API dan haqiqiy guruhni qidiradi.
+    """
     if not context.args:
-        await update.message.reply_text("Ishlatish: /setgroup <marsit_guruh_id>")
+        await update.message.reply_text(
+            "Ishlatish: /setgroup <guruh_nomi>\n"
+            "Misol: /setgroup INPR-1954"
+        )
         return
 
-    marsit_id = context.args[0]
+    query = " ".join(context.args).strip().upper()
     chat_id = str(update.effective_chat.id)
+    # Telegram guruh nomi (saqlab qo'yamiz)
+    telegram_title = update.effective_chat.title or f"Chat {chat_id}"
     db = get_db()
+
+    # 1. Marsit API dan guruhlarni olib, nom bo'yicha qidirish
+    try:
+        from agents.api_client import get_groups as _get_groups
+        raw_groups = await asyncio.get_running_loop().run_in_executor(None, _get_groups)
+    except Exception as e:
+        logger.error(f"Guruhlar olishda xato: {e}")
+        raw_groups = []
+
+    matched = None
+    for g in raw_groups:
+        name = g.get("name", "").upper()
+        gid  = str(g.get("id", ""))
+        # To'liq nom yoki qisman moslik yoki ID bo'yicha
+        if query == name or query in name or query == gid:
+            matched = g
+            break
+
+    if matched:
+        marsit_id  = str(matched["id"])
+        marsit_name = matched.get("name", marsit_id)
+    else:
+        # Topilmasa — foydalanuvchi kiritgan qiymatni ID sifatida ishlatamiz
+        marsit_id  = context.args[0]
+        marsit_name = query
 
     await db.groups.update_one(
         {"marsit_id": marsit_id},
-        {"$set": {"telegram_chat_id": chat_id, "is_active": True, "name": f"Guruh {marsit_id}"}},
+        {"$set": {
+            "telegram_chat_id": chat_id,
+            "telegram_name": telegram_title,   # Telegram guruh nomi
+            "name": marsit_name,               # Marsit guruh nomi
+            "is_active": True,
+        }},
         upsert=True,
     )
-    await update.message.reply_text(f"✅ Guruh {marsit_id} ushbu chat ga bog'landi")
+    await update.message.reply_text(
+        f"✅ <b>{marsit_name}</b> → <b>{telegram_title}</b> ga bog'landi!",
+        parse_mode=ParseMode.HTML
+    )
