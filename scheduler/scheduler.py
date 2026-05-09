@@ -4,7 +4,7 @@ import logging
 import pytz
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
-from agents import scraper_agent, coin_agent, notification_agent
+from agents import coin_agent, notification_agent
 from config import config
 from database import get_db
 
@@ -131,53 +131,85 @@ async def task_assignment_job() -> None:
 # ─── 23:00 ────────────────────────────────────────────────────────────────────
 
 async def evening_job() -> None:
-    """23:00 — natijalar + ogohlantirish."""
+    """
+    23:00 — Topshiriqlar → Berilgan topshiriqlar dan natija + coin + ogohlantirish.
+    tasks-teacher + student_projects endpointlari ishlatiladi.
+    """
     logger.info("23:00 job boshlandi")
 
-    try:
-        all_groups = await _run_sync(scraper_agent.scrape_all_groups)
-    except Exception as e:
-        logger.error(f"Scraping muvaffaqiyatsiz: {e}")
-        return
+    from agents.api_client import get_any_student_id, get_tasks_for_student, get_element_submissions
 
     db = get_db()
-    db_groups = {
-        g["marsit_id"]: g
-        for g in await db.groups.find({"is_active": True}).to_list(length=50)
-    }
+    groups = await db.groups.find(
+        {"is_active": True, "telegram_chat_id": {"$exists": True, "$ne": None}}
+    ).to_list(length=50)
 
-    for group_data in all_groups:
-        if not group_data.has_lesson_today:
-            continue
+    for group in groups:
+        marsit_id  = group["marsit_id"]
+        group_name = group.get("name", marsit_id)
+        chat_id    = group["telegram_chat_id"]
 
-        student_dicts = [
-            {"marsit_id": s.marsit_id, "name": s.name, "solved": s.solved}
-            for s in group_data.students
-        ]
+        try:
+            # 1. Bitta student_id olish
+            student_doc = await db.students.find_one({"group_id": marsit_id})
+            if student_doc:
+                student_id = int(student_doc["marsit_id"])
+            else:
+                student_id = await _run_sync(get_any_student_id, int(marsit_id))
 
-        result = await coin_agent.process_results(group_data.marsit_id, student_dicts)
+            if not student_id:
+                logger.info(f"{group_name}: o'quvchi topilmadi, o'tkazib yuborildi")
+                continue
 
-        db_group = db_groups.get(group_data.marsit_id)
-        if not db_group or not db_group.get("telegram_chat_id"):
-            continue
+            # 2. Berilgan topshiriqlarni olish
+            tasks = await _run_sync(get_tasks_for_student, int(marsit_id), student_id)
+            if not tasks:
+                logger.info(f"{group_name}: topshiriq berilmagan, o'tkazib yuborildi")
+                continue
 
-        chat_id = db_group["telegram_chat_id"]
-        group_name = db_group.get("name", group_data.name)
+            # 3. Har topshiriq uchun submissions
+            all_students: dict[int, dict] = {}  # student_id → {name, solved}
+            for task in tasks:
+                submissions = await _run_sync(
+                    get_element_submissions, int(marsit_id), task["id"]
+                )
+                for s in submissions:
+                    sid  = s["id"]
+                    name = f"{s.get('first_name','')} {s.get('last_name','')}".strip()
+                    if sid not in all_students:
+                        all_students[sid] = {"name": name, "marsit_id": str(sid), "solved": False}
+                    if s.get("answer") is not None:
+                        all_students[sid]["solved"] = True
 
-        await notification_agent.send_evening_results(
-            chat_id=chat_id, group_name=group_name,
-            solved=result["solved"], unsolved=result["unsolved"],
-            total_given=result["total_given"], total_taken=result["total_taken"],
-        )
+            if not all_students:
+                logger.info(f"{group_name}: submissions bo'sh")
+                continue
 
-        if result["warned_students"]:
-            await notification_agent.send_warnings(
-                group_chat_id=chat_id,
-                group_name=group_name,
-                warned_students=result["warned_students"],
+            # 4. Coin hisob-kitob
+            student_dicts = list(all_students.values())
+            result = await coin_agent.process_results(marsit_id, student_dicts, check_type="evening")
+
+            # 5. Guruh chatiga natija
+            await notification_agent.send_evening_results(
+                chat_id=chat_id, group_name=group_name,
+                solved=result["solved"], unsolved=result["unsolved"],
+                total_given=result["total_given"], total_taken=result["total_taken"],
             )
 
-    logger.info(f"23:00 job tugadi: {len(all_groups)} ta guruh")
+            # 6. Ogohlantirish
+            if result["warned_students"]:
+                await notification_agent.send_warnings(
+                    group_chat_id=chat_id,
+                    group_name=group_name,
+                    warned_students=result["warned_students"],
+                )
+
+            logger.info(f"{group_name}: {len(result['solved'])} bajardi, {len(result['unsolved'])} bajarmadi")
+
+        except Exception as e:
+            logger.error(f"{group_name} evening_job xato: {e}")
+
+    logger.info("23:00 job tugadi")
 
 
 # ─── Scheduler ────────────────────────────────────────────────────────────────
