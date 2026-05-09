@@ -352,6 +352,29 @@ async def on_back_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
 
 # ─── Qolgan buyruqlar ─────────────────────────────────────────────────────────
 
+async def cmd_status(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """/status — ulangan guruhlar ro'yxati."""
+    db = get_db()
+    groups = await db.groups.find({"is_active": True}).to_list(length=50)
+
+    if not groups:
+        await update.message.reply_text(
+            "❌ Hech qanday guruh ulanmagan.\n"
+            "Guruh chatida /setgroup <marsit_id> yuboring."
+        )
+        return
+
+    lines = ["📋 <b>Ulangan guruhlar:</b>\n"]
+    for g in groups:
+        if g.get("telegram_chat_id"):
+            lines.append(f"✅ <b>{g.get('name', g['marsit_id'])}</b> (ID: {g['marsit_id']})")
+        else:
+            lines.append(f"⚠️ <b>{g.get('name', g['marsit_id'])}</b> — Telegram ID yo'q")
+
+    lines.append(f"\n📊 Jami: {len(groups)} ta guruh")
+    await update.message.reply_text("\n".join(lines), parse_mode=ParseMode.HTML)
+
+
 @admin_only
 async def cmd_weekly(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """/hisobot — haftalik hisobotni hozir yuborish."""

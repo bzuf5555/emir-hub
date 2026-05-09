@@ -6,7 +6,7 @@ from telegram.ext import (
 )
 
 from bot.handlers import (
-    cmd_start, cmd_coins, cmd_set_group, cmd_weekly,
+    cmd_start, cmd_status, cmd_coins, cmd_set_group, cmd_weekly,
     on_group_selected, on_action_message, on_action_check,
     on_back_start, receive_message, WAITING_MESSAGE,
     on_task_confirm,
@@ -31,6 +31,7 @@ def create_app() -> Application:
     )
 
     app.add_handler(CommandHandler("start",    cmd_start))
+    app.add_handler(CommandHandler("status",   cmd_status))
     app.add_handler(CommandHandler("coins",    cmd_coins))
     app.add_handler(CommandHandler("hisobot",  cmd_weekly))
     app.add_handler(CommandHandler("setgroup", cmd_set_group))
