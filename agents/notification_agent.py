@@ -113,10 +113,15 @@ def format_group_warning(group_name: str, warned_students: list[dict]) -> str:
                 f"🔴 <b>{name}</b> — 2 kun ketma-ket bajarilmadi!\n"
                 f"   📌 Bugun albatta bajaring! (2/3)"
             )
-        elif streak >= 3:
+        elif streak == 3:
             lines.append(
                 f"🚨 <b>{name}</b> — {streak} kun bajarilmadi!\n"
-                f"   ‼️ Oxirgi ogohlantirish! ({streak}/3+)"
+                f"   ‼️ Oxirgi ogohlantirish! ({streak}/3)"
+            )
+        elif streak >= 4:
+            lines.append(
+                f"📞 <b>{name}</b> — {streak} kun bajarilmadi!\n"
+                f"   📌 Ota-onasi bilan bog'lanilmoqda! ({streak} kun)"
             )
 
     if not lines:
@@ -132,19 +137,28 @@ def format_group_warning(group_name: str, warned_students: list[dict]) -> str:
 
 
 def format_mentor_warning(group_name: str, student: dict) -> str:
-    """2-marta o'tkazib yuborganda mentorga xabar."""
+    """Mentorga ogohlantirish: streak darajasiga qarab."""
     streak = student["missed_streak"]
     name = student["name"]
     today = date.today().strftime("%d.%m.%Y")
 
-    if streak >= 3:
+    if streak >= 4:
         return (
-            f"🚨 <b>OTA-ONAGA TELEFON QILING!</b>\n\n"
+            f"📞 <b>OTA-ONAGA TELEFON QILISH KERAK!</b>\n\n"
+            f"👤 O'quvchi: <b>{name}</b>\n"
+            f"👥 Guruh: <b>{group_name}</b>\n"
+            f"📅 Sana: {today}\n"
+            f"🔢 Ketma-ket bajarmagan: <b>{streak} kun</b>\n\n"
+            f"❗ Bu ogohlantirish emas — ota-onasiga <b>ZUDLIK BILAN</b> telefon qiling!"
+        )
+    elif streak >= 3:
+        return (
+            f"🚨 <b>Oxirgi ogohlantirish! ({streak}/3)</b>\n\n"
             f"👤 O'quvchi: <b>{name}</b>\n"
             f"👥 Guruh: <b>{group_name}</b>\n"
             f"📅 Sana: {today}\n"
             f"🔢 Ketma-ket o'tkazib yuborilgan: <b>{streak} kun</b>\n\n"
-            f"📞 Ota-onasi bilan zudlik bilan bog'laning!"
+            f"📞 Ota-onasi bilan bog'laning!"
         )
     else:
         return (
@@ -169,13 +183,18 @@ async def send_warnings(
     if group_text:
         await _send(group_chat_id, group_text)
 
-    # 2+ marta o'tkazib yuborgan o'quvchilar uchun mentorga xabar
-    if config.MENTOR_CHAT_ID:
-        for s in warned_students:
-            if s["missed_streak"] >= 2:
-                mentor_text = format_mentor_warning(group_name, s)
-                await _send(config.MENTOR_CHAT_ID, mentor_text)
-                logger.info(f"Mentorga ogohlantirish: {s['name']} ({s['missed_streak']} kun)")
+    for s in warned_students:
+        streak = s["missed_streak"]
+        if streak >= 4:
+            # 4+ kun: barcha mentorlarga ota-onaga telefon xabari
+            mentor_text = format_mentor_warning(group_name, s)
+            for mid in config.MENTOR_CHAT_IDS:
+                await _send(mid, mentor_text)
+            logger.info(f"Ota-ona xabari yuborildi: {s['name']} ({streak} kun)")
+        elif streak >= 2 and config.MENTOR_CHAT_ID:
+            mentor_text = format_mentor_warning(group_name, s)
+            await _send(config.MENTOR_CHAT_ID, mentor_text)
+            logger.info(f"Mentorga ogohlantirish: {s['name']} ({streak} kun)")
 
 
 async def send_morning_reminder(chat_id: str, group_name: str) -> None:
